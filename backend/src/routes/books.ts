@@ -1,9 +1,16 @@
 import express from 'express';
 import { z } from 'zod';
 import { prisma } from '../index';
-import { BookStatus, BookCategory } from '@prisma/client';
+import { authenticate } from '../middleware/auth';
 
 const router = express.Router();
+
+// Apply authentication to all routes
+router.use(authenticate);
+
+// Type for book status
+type BookStatus = 'read' | 'reading' | 'want_to_read';
+type BookCategory = 'fiction' | 'nonfiction';
 
 // Validation schemas
 const createBookSchema = z.object({

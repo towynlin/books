@@ -1,14 +1,32 @@
-import { Book, BookStatus, BookCategory, CreateBookInput, UpdateBookInput } from '../types/book';
+import { Book, BookStatus, BookCategory, CreateBookInput } from '../types/book';
+import type {
+  PublicKeyCredentialCreationOptionsJSON,
+  PublicKeyCredentialRequestOptionsJSON,
+  RegistrationResponseJSON,
+  AuthenticationResponseJSON,
+} from '@simplewebauthn/browser';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+const API_URL = (import.meta as any).env?.VITE_API_URL || 'http://localhost:3000';
+
+// Get auth token from localStorage
+function getAuthToken(): string | null {
+  return localStorage.getItem('authToken');
+}
 
 async function fetchAPI<T>(endpoint: string, options?: RequestInit): Promise<T> {
+  const token = getAuthToken();
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    ...options?.headers as Record<string, string>,
+  };
+
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+
   const response = await fetch(`${API_URL}${endpoint}`, {
     ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      ...options?.headers,
-    },
+    headers,
   });
 
   if (!response.ok) {
@@ -83,12 +101,19 @@ export const importAPI = {
       errors: Array<{ title: string; error: string }>;
     };
   }> => {
+    const token = getAuthToken();
     const formData = new FormData();
     formData.append('file', file);
+
+    const headers: Record<string, string> = {};
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
 
     const response = await fetch(`${API_URL}/api/import/goodreads`, {
       method: 'POST',
       body: formData,
+      headers,
     });
 
     if (!response.ok) {
@@ -97,5 +122,64 @@ export const importAPI = {
     }
 
     return response.json();
+  },
+};
+
+export interface User {
+  id: string;
+  username: string;
+}
+
+export interface AuthResponse {
+  verified: boolean;
+  token: string;
+  user: User;
+}
+
+export const authAPI = {
+  // Check if a user exists
+  checkStatus: async (): Promise<{ hasUser: boolean }> => {
+    const response = await fetch(`${API_URL}/api/auth/status`);
+    return response.json();
+  },
+
+  // Get registration options
+  getRegistrationOptions: async (username: string): Promise<PublicKeyCredentialCreationOptionsJSON> => {
+    return fetchAPI<PublicKeyCredentialCreationOptionsJSON>('/api/auth/register/options', {
+      method: 'POST',
+      body: JSON.stringify({ username }),
+    });
+  },
+
+  // Verify registration
+  verifyRegistration: async (username: string, credential: RegistrationResponseJSON): Promise<AuthResponse> => {
+    return fetchAPI<AuthResponse>('/api/auth/register/verify', {
+      method: 'POST',
+      body: JSON.stringify({ username, credential }),
+    });
+  },
+
+  // Get login options
+  getLoginOptions: async (username: string): Promise<PublicKeyCredentialRequestOptionsJSON> => {
+    return fetchAPI<PublicKeyCredentialRequestOptionsJSON>('/api/auth/login/options', {
+      method: 'POST',
+      body: JSON.stringify({ username }),
+    });
+  },
+
+  // Verify login
+  verifyLogin: async (username: string, credential: AuthenticationResponseJSON): Promise<AuthResponse> => {
+    return fetchAPI<AuthResponse>('/api/auth/login/verify', {
+      method: 'POST',
+      body: JSON.stringify({ username, credential }),
+    });
+  },
+
+  // Verify token
+  verifyToken: async (token: string): Promise<{ valid: boolean; user: User }> => {
+    return fetchAPI<{ valid: boolean; user: User }>('/api/auth/verify-token', {
+      method: 'POST',
+      body: JSON.stringify({ token }),
+    });
   },
 };
