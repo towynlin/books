@@ -1,0 +1,93 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum BookStatus {
+  read
+  reading
+  want_to_read
+}
+
+enum BookCategory {
+  fiction
+  nonfiction
+}
+
+model Book {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Book identification
+  goodreadsId String? @map("goodreads_id")
+  title       String
+  author      String
+  isbn        String?
+  isbn13      String?
+  coverUrl    String? @map("cover_url")
+
+  // Reading status and categorization
+  status   BookStatus
+  category BookCategory?
+
+  // Reading dates
+  dateStarted  DateTime? @map("date_started")
+  dateFinished DateTime? @map("date_finished")
+  dateAdded    DateTime  @default(now()) @map("date_added")
+
+  // User data
+  myRating Int?   @map("my_rating") // 1-5, null if not rated
+  notes    String? @db.Text
+
+  // Next up list positioning
+  nextUpOrder Int? @map("next_up_order")
+
+  // Additional metadata from Goodreads
+  publisher              String?
+  binding                String?
+  pages                  Int?
+  yearPublished          Int?    @map("year_published")
+  originalPublicationYear Int?   @map("original_publication_year")
+  averageRating          Float?  @map("average_rating")
+
+  @@map("books")
+}
+
+model User {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  username String @unique
+
+  // Passkey credentials
+  credentials PasskeyCredential[]
+
+  @@map("users")
+}
+
+model PasskeyCredential {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  userId       String @map("user_id")
+  user         User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  credentialId String @unique @map("credential_id")
+  publicKey    Bytes  @map("public_key")
+  counter      BigInt @default(0)
+
+  // Device info for display
+  deviceName   String? @map("device_name")
+
+  @@map("passkey_credentials")
+}
