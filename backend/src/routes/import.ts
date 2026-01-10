@@ -2,10 +2,16 @@ import express from 'express';
 import multer from 'multer';
 import { parse } from 'csv-parse';
 import { prisma } from '../index';
-import { BookStatus } from '@prisma/client';
+import { authenticate } from '../middleware/auth';
 
 const router = express.Router();
 const upload = multer({ storage: multer.memoryStorage() });
+
+// Apply authentication to all routes
+router.use(authenticate);
+
+// Type for book status
+type BookStatus = 'read' | 'reading' | 'want_to_read';
 
 interface GoodreadsRow {
   'Book Id': string;
