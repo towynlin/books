@@ -134,6 +134,7 @@ export interface AuthResponse {
   verified: boolean;
   token: string;
   user: User;
+  recoveryCodes?: string[]; // Only present on registration
 }
 
 export const authAPI = {
@@ -181,5 +182,91 @@ export const authAPI = {
       method: 'POST',
       body: JSON.stringify({ token }),
     });
+  },
+
+  // Login with recovery code
+  loginWithRecoveryCode: async (username: string, recoveryCode: string): Promise<AuthResponse> => {
+    const response = await fetch(`${API_URL}/api/auth/login/recovery`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, recoveryCode }),
+    });
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ error: 'Login failed' }));
+      throw new Error(error.error || `Login failed with status ${response.status}`);
+    }
+    return response.json();
+  },
+
+  // List user's passkeys
+  listPasskeys: async (): Promise<{ passkeys: Array<{ id: string; createdAt: string; deviceName: string }> }> => {
+    return fetchAPI<{ passkeys: Array<{ id: string; createdAt: string; deviceName: string }> }>('/api/auth/passkeys');
+  },
+
+  // Get options to add a new passkey
+  getAddPasskeyOptions: async (): Promise<PublicKeyCredentialCreationOptionsJSON> => {
+    return fetchAPI<PublicKeyCredentialCreationOptionsJSON>('/api/auth/passkeys/add-options', {
+      method: 'POST',
+    });
+  },
+
+  // Verify and add new passkey
+  addPasskey: async (credential: RegistrationResponseJSON, deviceName?: string): Promise<{ success: boolean; message: string }> => {
+    return fetchAPI<{ success: boolean; message: string }>('/api/auth/passkeys/add-verify', {
+      method: 'POST',
+      body: JSON.stringify({ credential, deviceName }),
+    });
+  },
+
+  // Delete a passkey
+  deletePasskey: async (id: string): Promise<{ success: boolean; message: string }> => {
+    return fetchAPI<{ success: boolean; message: string }>(`/api/auth/passkeys/${id}`, {
+      method: 'DELETE',
+    });
+  },
+
+  // Generate setup token
+  generateSetupToken: async (): Promise<{ token: string; expiresAt: string; setupUrl: string }> => {
+    return fetchAPI<{ token: string; expiresAt: string; setupUrl: string }>('/api/auth/setup-token/generate', {
+      method: 'POST',
+    });
+  },
+
+  // Validate setup token
+  validateSetupToken: async (token: string): Promise<{ valid: boolean; username: string; expiresAt: string }> => {
+    const response = await fetch(`${API_URL}/api/auth/setup-token/validate/${token}`);
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ error: 'Request failed' }));
+      throw new Error(error.error || `Request failed with status ${response.status}`);
+    }
+    return response.json();
+  },
+
+  // Get registration options using setup token
+  getSetupRegistrationOptions: async (token: string): Promise<PublicKeyCredentialCreationOptionsJSON> => {
+    const response = await fetch(`${API_URL}/api/auth/setup-token/register-options`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token }),
+    });
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ error: 'Request failed' }));
+      throw new Error(error.error || `Request failed with status ${response.status}`);
+    }
+    return response.json();
+  },
+
+  // Complete setup with token
+  completeSetup: async (token: string, credential: RegistrationResponseJSON, deviceName?: string): Promise<AuthResponse> => {
+    const response = await fetch(`${API_URL}/api/auth/setup-token/register-verify`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token, credential, deviceName }),
+    });
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ error: 'Request failed' }));
+      throw new Error(error.error || `Request failed with status ${response.status}`);
+    }
+    return response.json();
   },
 };

@@ -29,6 +29,10 @@ services:
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-books}:${POSTGRES_PASSWORD:-books_password}@postgres:5432/${POSTGRES_DB:-books}
       PORT: 3000
+      JWT_SECRET: ${JWT_SECRET:-your-secret-key-change-in-production}
+      RP_NAME: ${RP_NAME:-Books Tracker}
+      RP_ID: ${RP_ID:-localhost}
+      RP_ORIGIN: ${RP_ORIGIN:-http://localhost:5173}
     ports:
       - "3000:3000"
     volumes:

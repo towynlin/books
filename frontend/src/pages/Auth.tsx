@@ -10,6 +10,9 @@ export function Auth() {
   const [isLoading, setIsLoading] = useState(false);
   const [checkingStatus, setCheckingStatus] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [recoveryCodes, setRecoveryCodes] = useState<string[] | null>(null);
+  const [useRecoveryCode, setUseRecoveryCode] = useState(false);
+  const [recoveryCode, setRecoveryCode] = useState('');
   const { login } = useAuth();
   const navigate = useNavigate();
 
@@ -50,9 +53,13 @@ export function Auth() {
       // Verify registration with server
       const response = await authAPI.verifyRegistration(username, credential);
 
-      // Store auth token and redirect
+      // Store auth token
       login(response.token, response.user);
-      navigate('/');
+
+      // Show recovery codes if returned
+      if (response.recoveryCodes) {
+        setRecoveryCodes(response.recoveryCodes);
+      }
     } catch (err) {
       console.error('Registration failed:', err);
       setError(err instanceof Error ? err.message : 'Registration failed');
@@ -73,18 +80,32 @@ export function Auth() {
         return;
       }
 
-      // Get login options from server
-      const options = await authAPI.getLoginOptions(username);
+      if (useRecoveryCode) {
+        // Login with recovery code
+        if (!recoveryCode.trim()) {
+          setError('Recovery code is required');
+          setIsLoading(false);
+          return;
+        }
 
-      // Start WebAuthn authentication
-      const credential = await startAuthentication({ optionsJSON: options });
+        const response = await authAPI.loginWithRecoveryCode(username, recoveryCode);
+        login(response.token, response.user);
+        navigate('/');
+      } else {
+        // Login with passkey
+        // Get login options from server
+        const options = await authAPI.getLoginOptions(username);
 
-      // Verify login with server
-      const response = await authAPI.verifyLogin(username, credential);
+        // Start WebAuthn authentication
+        const credential = await startAuthentication({ optionsJSON: options });
 
-      // Store auth token and redirect
-      login(response.token, response.user);
-      navigate('/');
+        // Verify login with server
+        const response = await authAPI.verifyLogin(username, credential);
+
+        // Store auth token and redirect
+        login(response.token, response.user);
+        navigate('/');
+      }
     } catch (err) {
       console.error('Login failed:', err);
       setError(err instanceof Error ? err.message : 'Login failed');
@@ -104,6 +125,75 @@ export function Auth() {
     );
   }
 
+  if (recoveryCodes) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
+        <div className="max-w-2xl w-full space-y-8">
+          <div className="text-center">
+            <div className="mx-auto h-12 w-12 rounded-full bg-green-100 flex items-center justify-center">
+              <svg className="h-6 w-6 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              </svg>
+            </div>
+            <h2 className="mt-6 text-3xl font-extrabold text-gray-900">
+              Account Created Successfully!
+            </h2>
+          </div>
+
+          <div className="bg-white shadow rounded-lg p-6 space-y-4">
+            <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-4">
+              <div className="flex">
+                <div className="flex-shrink-0">
+                  <svg className="h-5 w-5 text-yellow-400" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                  </svg>
+                </div>
+                <div className="ml-3">
+                  <h3 className="text-sm font-medium text-yellow-800">
+                    Save Your Recovery Codes
+                  </h3>
+                  <div className="mt-2 text-sm text-yellow-700">
+                    <p>
+                      These codes can be used to access your account if you lose access to your passkey.
+                      Each code can only be used once. Store them somewhere safe!
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-gray-50 p-4 rounded border border-gray-200">
+              <div className="grid grid-cols-2 gap-2 font-mono text-sm">
+                {recoveryCodes.map((code, index) => (
+                  <div key={index} className="text-gray-800">{code}</div>
+                ))}
+              </div>
+            </div>
+
+            <button
+              onClick={() => {
+                navigator.clipboard.writeText(recoveryCodes.join('\n'));
+                alert('Recovery codes copied to clipboard!');
+              }}
+              className="w-full py-2 px-4 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+            >
+              Copy All Codes
+            </button>
+
+            <div className="pt-4 border-t border-gray-200">
+              <button
+                onClick={() => navigate('/')}
+                className="w-full py-2 px-4 border border-transparent rounded-md text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+              >
+                Continue to App
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md w-full space-y-8">
@@ -117,7 +207,7 @@ export function Auth() {
         </div>
 
         <form className="mt-8 space-y-6" onSubmit={hasUser ? handleLogin : handleRegister}>
-          <div className="rounded-md shadow-sm -space-y-px">
+          <div className="rounded-md shadow-sm space-y-3">
             <div>
               <label htmlFor="username" className="sr-only">
                 Username
@@ -128,13 +218,32 @@ export function Auth() {
                 type="text"
                 autoComplete="username"
                 required
-                className="appearance-none rounded-md relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
+                className="appearance-none rounded-md relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
                 placeholder="Username"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 disabled={isLoading}
               />
             </div>
+
+            {hasUser && useRecoveryCode && (
+              <div>
+                <label htmlFor="recoveryCode" className="sr-only">
+                  Recovery Code
+                </label>
+                <input
+                  id="recoveryCode"
+                  name="recoveryCode"
+                  type="text"
+                  required
+                  className="appearance-none rounded-md relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm font-mono"
+                  placeholder="XXXX-XXXX-XXXX-XXXX"
+                  value={recoveryCode}
+                  onChange={(e) => setRecoveryCode(e.target.value.toUpperCase())}
+                  disabled={isLoading}
+                />
+              </div>
+            )}
           </div>
 
           {error && (
@@ -159,15 +268,39 @@ export function Auth() {
                 </span>
               ) : (
                 <>
-                  {hasUser ? 'Sign in with Passkey' : 'Create Account with Passkey'}
+                  {hasUser
+                    ? useRecoveryCode
+                      ? 'Sign in with Recovery Code'
+                      : 'Sign in with Passkey'
+                    : 'Create Account with Passkey'}
                 </>
               )}
             </button>
           </div>
 
+          {hasUser && (
+            <div className="text-sm text-center">
+              <button
+                type="button"
+                onClick={() => {
+                  setUseRecoveryCode(!useRecoveryCode);
+                  setRecoveryCode('');
+                  setError(null);
+                }}
+                className="font-medium text-blue-600 hover:text-blue-500"
+              >
+                {useRecoveryCode ? 'Use passkey instead' : 'Use recovery code instead'}
+              </button>
+            </div>
+          )}
+
           <div className="text-sm text-center text-gray-600">
             <p>
-              {hasUser ? 'Use your device\'s biometric authentication or security key' : 'Your passkey will be stored securely on this device'}
+              {hasUser
+                ? useRecoveryCode
+                  ? 'Enter one of your recovery codes'
+                  : 'Use your device\'s biometric authentication or security key'
+                : 'Your passkey will be stored securely on this device'}
             </p>
           </div>
         </form>
