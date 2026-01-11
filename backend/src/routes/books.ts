@@ -1,6 +1,6 @@
 import express from 'express';
 import { z } from 'zod';
-import { prisma } from '../index';
+import { query, getClient } from '../db';
 import { authenticate } from '../middleware/auth';
 
 const router = express.Router();
@@ -35,29 +35,33 @@ router.get('/', async (req, res) => {
   try {
     const { status, category, nextUp } = req.query;
 
-    const where: any = {};
+    const conditions: string[] = [];
+    const params: any[] = [];
+    let paramIndex = 1;
 
     if (status) {
-      where.status = status as BookStatus;
+      conditions.push(`status = $${paramIndex++}`);
+      params.push(status);
     }
 
     if (category) {
-      where.category = category as BookCategory;
+      conditions.push(`category = $${paramIndex++}`);
+      params.push(category);
     }
 
     if (nextUp === 'true') {
-      where.nextUpOrder = { not: null };
+      conditions.push('next_up_order IS NOT NULL');
     }
 
-    const books = await prisma.book.findMany({
-      where,
-      orderBy: [
-        { nextUpOrder: 'asc' },
-        { dateAdded: 'desc' }
-      ]
-    });
+    const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+    const sql = `
+      SELECT * FROM books
+      ${whereClause}
+      ORDER BY next_up_order ASC NULLS LAST, date_added DESC
+    `;
 
-    res.json(books);
+    const result = await query(sql, params);
+    res.json(result.rows);
   } catch (error) {
     console.error('Error fetching books:', error);
     res.status(500).json({ error: 'Failed to fetch books' });
@@ -67,15 +71,13 @@ router.get('/', async (req, res) => {
 // GET /api/books/:id - Get single book
 router.get('/:id', async (req, res) => {
   try {
-    const book = await prisma.book.findUnique({
-      where: { id: req.params.id }
-    });
+    const result = await query('SELECT * FROM books WHERE id = $1', [req.params.id]);
 
-    if (!book) {
+    if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Book not found' });
     }
 
-    res.json(book);
+    res.json(result.rows[0]);
   } catch (error) {
     console.error('Error fetching book:', error);
     res.status(500).json({ error: 'Failed to fetch book' });
@@ -87,15 +89,29 @@ router.post('/', async (req, res) => {
   try {
     const data = createBookSchema.parse(req.body);
 
-    const book = await prisma.book.create({
-      data: {
-        ...data,
-        dateStarted: data.dateStarted ? new Date(data.dateStarted) : null,
-        dateFinished: data.dateFinished ? new Date(data.dateFinished) : null,
-      }
-    });
+    const result = await query(
+      `INSERT INTO books (
+        title, author, status, category, isbn, isbn13, cover_url,
+        date_started, date_finished, my_rating, notes, next_up_order
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+      RETURNING *`,
+      [
+        data.title,
+        data.author,
+        data.status,
+        data.category || null,
+        data.isbn || null,
+        data.isbn13 || null,
+        data.coverUrl || null,
+        data.dateStarted ? new Date(data.dateStarted) : null,
+        data.dateFinished ? new Date(data.dateFinished) : null,
+        data.myRating || null,
+        data.notes || null,
+        data.nextUpOrder || null,
+      ]
+    );
 
-    res.status(201).json(book);
+    res.status(201).json(result.rows[0]);
   } catch (error) {
     if (error instanceof z.ZodError) {
       return res.status(400).json({ error: 'Invalid input', details: error.errors });
@@ -110,22 +126,79 @@ router.patch('/:id', async (req, res) => {
   try {
     const data = updateBookSchema.parse(req.body);
 
-    const updateData: any = { ...data };
+    const setClauses: string[] = [];
+    const params: any[] = [];
+    let paramIndex = 1;
 
+    if (data.title !== undefined) {
+      setClauses.push(`title = $${paramIndex++}`);
+      params.push(data.title);
+    }
+    if (data.author !== undefined) {
+      setClauses.push(`author = $${paramIndex++}`);
+      params.push(data.author);
+    }
+    if (data.status !== undefined) {
+      setClauses.push(`status = $${paramIndex++}`);
+      params.push(data.status);
+    }
+    if (data.category !== undefined) {
+      setClauses.push(`category = $${paramIndex++}`);
+      params.push(data.category);
+    }
+    if (data.isbn !== undefined) {
+      setClauses.push(`isbn = $${paramIndex++}`);
+      params.push(data.isbn);
+    }
+    if (data.isbn13 !== undefined) {
+      setClauses.push(`isbn13 = $${paramIndex++}`);
+      params.push(data.isbn13);
+    }
+    if (data.coverUrl !== undefined) {
+      setClauses.push(`cover_url = $${paramIndex++}`);
+      params.push(data.coverUrl);
+    }
     if (data.dateStarted !== undefined) {
-      updateData.dateStarted = data.dateStarted ? new Date(data.dateStarted) : null;
+      setClauses.push(`date_started = $${paramIndex++}`);
+      params.push(data.dateStarted ? new Date(data.dateStarted) : null);
     }
-
     if (data.dateFinished !== undefined) {
-      updateData.dateFinished = data.dateFinished ? new Date(data.dateFinished) : null;
+      setClauses.push(`date_finished = $${paramIndex++}`);
+      params.push(data.dateFinished ? new Date(data.dateFinished) : null);
+    }
+    if (data.myRating !== undefined) {
+      setClauses.push(`my_rating = $${paramIndex++}`);
+      params.push(data.myRating);
+    }
+    if (data.notes !== undefined) {
+      setClauses.push(`notes = $${paramIndex++}`);
+      params.push(data.notes);
+    }
+    if (data.nextUpOrder !== undefined) {
+      setClauses.push(`next_up_order = $${paramIndex++}`);
+      params.push(data.nextUpOrder);
     }
 
-    const book = await prisma.book.update({
-      where: { id: req.params.id },
-      data: updateData
-    });
+    if (setClauses.length === 0) {
+      return res.status(400).json({ error: 'No fields to update' });
+    }
 
-    res.json(book);
+    params.push(req.params.id);
+
+    const sql = `
+      UPDATE books
+      SET ${setClauses.join(', ')}
+      WHERE id = $${paramIndex}
+      RETURNING *
+    `;
+
+    const result = await query(sql, params);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Book not found' });
+    }
+
+    res.json(result.rows[0]);
   } catch (error) {
     if (error instanceof z.ZodError) {
       return res.status(400).json({ error: 'Invalid input', details: error.errors });
@@ -138,9 +211,11 @@ router.patch('/:id', async (req, res) => {
 // DELETE /api/books/:id - Delete book
 router.delete('/:id', async (req, res) => {
   try {
-    await prisma.book.delete({
-      where: { id: req.params.id }
-    });
+    const result = await query('DELETE FROM books WHERE id = $1', [req.params.id]);
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: 'Book not found' });
+    }
 
     res.status(204).send();
   } catch (error) {
@@ -159,14 +234,24 @@ router.post('/reorder-next-up', async (req, res) => {
     }
 
     // Update all books in transaction
-    await prisma.$transaction(
-      bookIds.map((id, index) =>
-        prisma.book.update({
-          where: { id },
-          data: { nextUpOrder: index }
-        })
-      )
-    );
+    const client = await getClient();
+    try {
+      await client.query('BEGIN');
+
+      for (let i = 0; i < bookIds.length; i++) {
+        await client.query(
+          'UPDATE books SET next_up_order = $1 WHERE id = $2',
+          [i, bookIds[i]]
+        );
+      }
+
+      await client.query('COMMIT');
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
 
     res.json({ success: true });
   } catch (error) {

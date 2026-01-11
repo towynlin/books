@@ -1,7 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
-import { PrismaClient } from '@prisma/client';
+import { endPool } from './db';
 import bookRoutes from './routes/books';
 import importRoutes from './routes/import';
 import authRoutes from './routes/auth';
@@ -10,8 +10,6 @@ dotenv.config();
 
 const app = express();
 const port = process.env.PORT || 3000;
-
-export const prisma = new PrismaClient();
 
 // Middleware
 app.use(cors());
@@ -29,12 +27,12 @@ app.get('/health', (req, res) => {
 });
 
 // Start server
-app.listen(port, () => {
+app.listen(port, '0.0.0.0', () => {
   console.log(`Server running on port ${port}`);
 });
 
 // Graceful shutdown
 process.on('SIGINT', async () => {
-  await prisma.$disconnect();
+  await endPool();
   process.exit(0);
 });

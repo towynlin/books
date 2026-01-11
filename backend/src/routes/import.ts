@@ -1,7 +1,7 @@
 import express from 'express';
 import multer from 'multer';
 import { parse } from 'csv-parse';
-import { prisma } from '../index';
+import { query } from '../db';
 import { authenticate } from '../middleware/auth';
 
 const router = express.Router();
@@ -126,30 +126,37 @@ router.post('/goodreads', upload.single('file'), async (req, res) => {
       try {
         const myRating = parseIntOrNull(row['My Rating']);
 
-        const book = await prisma.book.create({
-          data: {
-            goodreadsId: row['Book Id'] || null,
-            title: row['Title'],
-            author: row['Author'],
-            isbn: parseISBN(row['ISBN']),
-            isbn13: parseISBN(row['ISBN13']),
-            coverUrl: null, // Will be populated later via API
-            status: mapStatus(row['Exclusive Shelf']),
-            category: null, // User will categorize manually or use auto-guesser
-            dateStarted: null, // User fills in manually
-            dateFinished: parseDate(row['Date Read']),
-            myRating: myRating && myRating > 0 ? myRating : null,
-            notes: combineNotes(row['My Review'], row['Private Notes']),
-            nextUpOrder: null,
-            publisher: row['Publisher'] || null,
-            binding: row['Binding'] || null,
-            pages: parseIntOrNull(row['Number of Pages']),
-            yearPublished: parseIntOrNull(row['Year Published']),
-            originalPublicationYear: parseIntOrNull(row['Original Publication Year']),
-            averageRating: parseFloatOrNull(row['Average Rating'])
-          }
-        });
+        const result = await query(
+          `INSERT INTO books (
+            goodreads_id, title, author, isbn, isbn13, cover_url, status, category,
+            date_started, date_finished, my_rating, notes, next_up_order,
+            publisher, binding, pages, year_published, original_publication_year, average_rating
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
+          RETURNING id, title, author`,
+          [
+            row['Book Id'] || null,
+            row['Title'],
+            row['Author'],
+            parseISBN(row['ISBN']),
+            parseISBN(row['ISBN13']),
+            null, // coverUrl - Will be populated later via API
+            mapStatus(row['Exclusive Shelf']),
+            null, // category - User will categorize manually or use auto-guesser
+            null, // dateStarted - User fills in manually
+            parseDate(row['Date Read']),
+            myRating && myRating > 0 ? myRating : null,
+            combineNotes(row['My Review'], row['Private Notes']),
+            null, // nextUpOrder
+            row['Publisher'] || null,
+            row['Binding'] || null,
+            parseIntOrNull(row['Number of Pages']),
+            parseIntOrNull(row['Year Published']),
+            parseIntOrNull(row['Original Publication Year']),
+            parseFloatOrNull(row['Average Rating'])
+          ]
+        );
 
+        const book = result.rows[0];
         imported.push({
           id: book.id,
           title: book.title,

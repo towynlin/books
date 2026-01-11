@@ -5,6 +5,8 @@ import { ProtectedRoute } from './components/ProtectedRoute';
 import { Home } from './pages/Home';
 import { Import } from './pages/Import';
 import { Auth } from './pages/Auth';
+import { Passkeys } from './pages/Passkeys';
+import { Setup } from './pages/Setup';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -43,6 +45,12 @@ function Navigation() {
               >
                 Import
               </Link>
+              <Link
+                to="/passkeys"
+                className="text-gray-700 hover:text-blue-600 transition-colors"
+              >
+                Passkeys
+              </Link>
             </div>
           </div>
           <div className="flex items-center gap-4">
@@ -69,6 +77,7 @@ function AppRoutes() {
 
       <Routes>
         <Route path="/auth" element={<Auth />} />
+        <Route path="/setup" element={<Setup />} />
         <Route
           path="/"
           element={
@@ -82,6 +91,14 @@ function AppRoutes() {
           element={
             <ProtectedRoute>
               <Import />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/passkeys"
+          element={
+            <ProtectedRoute>
+              <Passkeys />
             </ProtectedRoute>
           }
         />

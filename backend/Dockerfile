@@ -9,14 +9,10 @@ COPY tsconfig.json ./
 # Install dependencies
 RUN npm install
 
-# Copy prisma schema
-COPY prisma ./prisma
-
-# Generate Prisma Client
-RUN npx prisma generate
-
-# Copy source code
+# Copy source code and schema
 COPY src ./src
+COPY schema.sql ./
+COPY init-db.js ./
 
 # Expose port
 EXPOSE 3000
