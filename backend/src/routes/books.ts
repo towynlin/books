@@ -224,6 +224,83 @@ router.delete('/:id', async (req, res) => {
   }
 });
 
+// POST /api/books/:id/add-to-next-up - Add book to next-up list
+router.post('/:id/add-to-next-up', async (req, res) => {
+  try {
+    // Get the current max next_up_order
+    const maxOrderResult = await query(
+      'SELECT COALESCE(MAX(next_up_order), -1) as max_order FROM books WHERE next_up_order IS NOT NULL'
+    );
+    const nextOrder = maxOrderResult.rows[0].max_order + 1;
+
+    // Update the book with the new order
+    const result = await query(
+      'UPDATE books SET next_up_order = $1 WHERE id = $2 RETURNING *',
+      [nextOrder, req.params.id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Book not found' });
+    }
+
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Error adding book to next-up:', error);
+    res.status(500).json({ error: 'Failed to add book to next-up list' });
+  }
+});
+
+// POST /api/books/:id/remove-from-next-up - Remove book from next-up list
+router.post('/:id/remove-from-next-up', async (req, res) => {
+  try {
+    // Get the book's current order
+    const bookResult = await query(
+      'SELECT next_up_order FROM books WHERE id = $1',
+      [req.params.id]
+    );
+
+    if (bookResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Book not found' });
+    }
+
+    const removedOrder = bookResult.rows[0].next_up_order;
+
+    // Use transaction to update orders
+    const client = await getClient();
+    try {
+      await client.query('BEGIN');
+
+      // Remove from next-up list
+      await client.query(
+        'UPDATE books SET next_up_order = NULL WHERE id = $1',
+        [req.params.id]
+      );
+
+      // Reorder remaining books (decrement orders greater than the removed one)
+      if (removedOrder !== null) {
+        await client.query(
+          'UPDATE books SET next_up_order = next_up_order - 1 WHERE next_up_order > $1',
+          [removedOrder]
+        );
+      }
+
+      await client.query('COMMIT');
+
+      // Fetch and return updated book
+      const result = await query('SELECT * FROM books WHERE id = $1', [req.params.id]);
+      res.json(result.rows[0]);
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+  } catch (error) {
+    console.error('Error removing book from next-up:', error);
+    res.status(500).json({ error: 'Failed to remove book from next-up list' });
+  }
+});
+
 // POST /api/books/reorder-next-up - Reorder next-up lists
 router.post('/reorder-next-up', async (req, res) => {
   try {
