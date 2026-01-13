@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useBooks } from '../hooks/useBooks';
 import { BookCard } from '../components/BookCard';
+import { DraggableBookList } from '../components/DraggableBookList';
 import { BookStatus } from '../types/book';
 
 type ViewTab = 'reading' | 'read' | 'want_to_read' | 'next_up';
@@ -83,11 +84,15 @@ export function Home() {
           )}
 
           {books && books.length > 0 && (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {books.map((book) => (
-                <BookCard key={book.id} book={book} />
-              ))}
-            </div>
+            activeTab === 'next_up' ? (
+              <DraggableBookList books={books} />
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {books.map((book) => (
+                  <BookCard key={book.id} book={book} />
+                ))}
+              </div>
+            )
           )}
         </div>
       </div>
