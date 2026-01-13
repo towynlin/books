@@ -120,6 +120,9 @@ router.post('/register/verify', async (req, res) => {
 
     const { credentialID, credentialPublicKey, counter } = verification.registrationInfo;
 
+    // Get transports from the response
+    const transports = credential.response.transports || [];
+
     // Create user and credential
     const userResult = await query(
       'INSERT INTO users (username) VALUES ($1) RETURNING id, username',
@@ -128,12 +131,13 @@ router.post('/register/verify', async (req, res) => {
     const user = userResult.rows[0];
 
     await query(
-      'INSERT INTO passkey_credentials (user_id, credential_id, public_key, counter) VALUES ($1, $2, $3, $4)',
+      'INSERT INTO passkey_credentials (user_id, credential_id, public_key, counter, transports) VALUES ($1, $2, $3, $4, $5)',
       [
         user.id,
         Buffer.from(credentialID).toString('base64'),
         Buffer.from(credentialPublicKey),
         counter,
+        transports,
       ]
     );
 
@@ -203,19 +207,18 @@ router.post('/login/options', async (req, res) => {
     const user = userResult.rows[0];
 
     const credentialsResult = await query(
-      'SELECT credential_id FROM passkey_credentials WHERE user_id = $1',
+      'SELECT credential_id, transports FROM passkey_credentials WHERE user_id = $1',
       [user.id]
     );
 
     // Generate authentication options
-    // Don't specify transports - the browser will automatically use Touch ID if the passkey is local
     const options = await generateAuthenticationOptions({
       rpID,
       allowCredentials: credentialsResult.rows.length > 0
         ? credentialsResult.rows.map((cred: any) => ({
             id: base64ToBase64url(cred.credential_id),
             type: 'public-key' as const,
-            // No transports specified - browser uses whatever is available locally
+            transports: cred.transports || [],
           }))
         : [],
       userVerification: 'preferred',
@@ -542,15 +545,19 @@ router.post('/passkeys/add-verify', authenticate, async (req: AuthRequest, res) 
 
     const { credentialID, credentialPublicKey, counter } = verification.registrationInfo;
 
+    // Get transports from the response
+    const transports = credential.response.transports || [];
+
     // Add credential to database
     await query(
-      'INSERT INTO passkey_credentials (user_id, credential_id, public_key, counter, device_name) VALUES ($1, $2, $3, $4, $5)',
+      'INSERT INTO passkey_credentials (user_id, credential_id, public_key, counter, device_name, transports) VALUES ($1, $2, $3, $4, $5, $6)',
       [
         userId,
         Buffer.from(credentialID).toString('base64'),
         Buffer.from(credentialPublicKey),
         counter,
         deviceName || null,
+        transports,
       ]
     );
 

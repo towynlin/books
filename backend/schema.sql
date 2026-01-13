@@ -69,7 +69,8 @@ CREATE TABLE passkey_credentials (
   credential_id TEXT NOT NULL UNIQUE,
   public_key BYTEA NOT NULL,
   counter BIGINT NOT NULL DEFAULT 0,
-  device_name TEXT
+  device_name TEXT,
+  transports TEXT[]
 );
 
 -- Setup tokens table for time-limited device setup links
