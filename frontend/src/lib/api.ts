@@ -88,6 +88,20 @@ export const booksAPI = {
       body: JSON.stringify({ bookIds }),
     });
   },
+
+  // Add book to next-up list
+  addToNextUp: async (id: string): Promise<Book> => {
+    return fetchAPI<Book>(`/api/books/${id}/add-to-next-up`, {
+      method: 'POST',
+    });
+  },
+
+  // Remove book from next-up list
+  removeFromNextUp: async (id: string): Promise<Book> => {
+    return fetchAPI<Book>(`/api/books/${id}/remove-from-next-up`, {
+      method: 'POST',
+    });
+  },
 };
 
 export const importAPI = {

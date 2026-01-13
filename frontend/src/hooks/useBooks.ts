@@ -65,3 +65,25 @@ export function useReorderNextUp() {
     },
   });
 }
+
+export function useAddToNextUp() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (id: string) => booksAPI.addToNextUp(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['books'] });
+    },
+  });
+}
+
+export function useRemoveFromNextUp() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (id: string) => booksAPI.removeFromNextUp(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['books'] });
+    },
+  });
+}
