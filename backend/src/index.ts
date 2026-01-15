@@ -1,6 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import path from 'path';
 import { endPool } from './db';
 import bookRoutes from './routes/books';
 import importRoutes from './routes/import';
@@ -28,6 +29,21 @@ app.use('/api/auth', authRoutes);
 app.get('/health', (req, res) => {
   res.json({ status: 'ok' });
 });
+
+// Serve frontend static files in production
+if (process.env.NODE_ENV === 'production') {
+  // Serve static files from the public directory
+  app.use(express.static(path.join(__dirname, '../public')));
+
+  // Serve index.html for all non-API routes (SPA routing)
+  app.get('*', (req, res, next) => {
+    // Skip API routes
+    if (req.path.startsWith('/api/') || req.path === '/health') {
+      return next();
+    }
+    res.sendFile(path.join(__dirname, '../public/index.html'));
+  });
+}
 
 // Start server
 app.listen(port, '0.0.0.0', () => {
