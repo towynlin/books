@@ -36,6 +36,11 @@ async function fetchAPI<T>(endpoint: string, options?: RequestInit): Promise<T> 
     throw new Error(error.error || `Request failed with status ${response.status}`);
   }
 
+  // 204 No Content has no body to parse
+  if (response.status === 204) {
+    return undefined as T;
+  }
+
   return response.json();
 }
 

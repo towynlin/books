@@ -1,5 +1,6 @@
+import { useState, useRef, useEffect } from 'react';
 import { Book } from '../types/book';
-import { useAddToNextUp, useRemoveFromNextUp } from '../hooks/useBooks';
+import { useAddToNextUp, useRemoveFromNextUp, useDeleteBook } from '../hooks/useBooks';
 import { getBookCoverUrl } from '../lib/bookCovers';
 
 interface BookCardProps {
@@ -10,6 +11,21 @@ interface BookCardProps {
 export function BookCard({ book, onClick }: BookCardProps) {
   const addToNextUp = useAddToNextUp();
   const removeFromNextUp = useRemoveFromNextUp();
+  const deleteBook = useDeleteBook();
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  // Close menu when clicking outside
+  useEffect(() => {
+    if (!menuOpen) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [menuOpen]);
 
   const categoryBadgeColor = book.category === 'fiction'
     ? 'bg-purple-100 text-purple-800'
@@ -27,6 +43,19 @@ export function BookCard({ book, onClick }: BookCardProps) {
     removeFromNextUp.mutate(book.id);
   };
 
+  const handleMenuToggle = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setMenuOpen(!menuOpen);
+  };
+
+  const handleDelete = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setMenuOpen(false);
+    if (confirm('Are you sure you want to delete this book?')) {
+      deleteBook.mutate(book.id);
+    }
+  };
+
   const isInNextUp = book.nextUpOrder !== null && book.nextUpOrder !== undefined;
 
   // Use stored coverUrl, or fall back to generating from ISBN
@@ -35,8 +64,31 @@ export function BookCard({ book, onClick }: BookCardProps) {
   return (
     <div
       onClick={onClick}
-      className="bg-white rounded-lg shadow-md p-4 hover:shadow-lg transition-shadow cursor-pointer"
+      className="bg-white rounded-lg shadow-md p-4 hover:shadow-lg transition-shadow cursor-pointer relative"
     >
+      {/* Three-dots menu */}
+      <div ref={menuRef} className="absolute top-2 right-2">
+        <button
+          onClick={handleMenuToggle}
+          className="p-1 text-gray-400 hover:text-gray-600 rounded hover:bg-gray-100"
+          aria-label="Book options"
+        >
+          <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+            <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" />
+          </svg>
+        </button>
+        {menuOpen && (
+          <div className="absolute right-0 mt-1 w-32 bg-white rounded-md shadow-lg border border-gray-200 py-1 z-10">
+            <button
+              onClick={handleDelete}
+              className="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50"
+            >
+              Delete
+            </button>
+          </div>
+        )}
+      </div>
+
       <div className="flex gap-4">
         {/* Cover thumbnail */}
         <div className="flex-shrink-0">
