@@ -1,6 +1,6 @@
 # Multi-stage Dockerfile for production deployment
 # Stage 1: Build frontend
-FROM dhi.io/node:25.3.0 AS frontend-builder
+FROM dhi.io/node:25-dev AS frontend-builder
 
 WORKDIR /app/frontend
 
@@ -18,7 +18,7 @@ ENV VITE_API_URL=""
 RUN npm run build
 
 # Stage 2: Build backend
-FROM dhi.io/node:25.3.0 AS backend-builder
+FROM dhi.io/node:25-dev AS backend-builder
 
 WORKDIR /app/backend
 
@@ -37,8 +37,8 @@ COPY backend/init-db.js ./
 # Build backend TypeScript
 RUN npm run build
 
-# Stage 3: Production runtime
-FROM dhi.io/node:25.3.0 AS production
+# Stage 3: Install production dependencies
+FROM dhi.io/node:25-dev AS deps-installer
 
 WORKDIR /app
 
@@ -47,6 +47,17 @@ COPY backend/package*.json ./
 
 # Install only production dependencies
 RUN npm ci --omit=dev
+
+# Stage 4: Production runtime (minimal, no shell)
+FROM dhi.io/node:25 AS production
+
+WORKDIR /app
+
+# Copy production node_modules from deps-installer
+COPY --from=deps-installer /app/node_modules ./node_modules
+
+# Copy package.json for node to find dependencies
+COPY backend/package*.json ./
 
 # Copy compiled backend from builder
 COPY --from=backend-builder /app/backend/dist ./dist
@@ -62,9 +73,9 @@ ENV NODE_ENV=production
 # Expose port (Fly.io will set this via env var)
 EXPOSE 8080
 
-# Health check
+# Health check using node directly (no shell needed)
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
-  CMD node -e "require('http').get('http://localhost:8080/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"
+  CMD ["node", "-e", "require('http').get('http://localhost:8080/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"]
 
 # Start the application
 CMD ["node", "dist/index.js"]
