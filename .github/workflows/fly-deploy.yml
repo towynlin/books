@@ -11,14 +11,24 @@ jobs:
     runs-on: ubuntu-latest
     concurrency: deploy-group    # optional: ensure only one action runs at a time
     steps:
+      - uses: actions/checkout@v4
       - name: Login to Docker Hardened Images registry
         uses: docker/login-action@v3
         with:
           registry: dhi.io
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
-      - uses: actions/checkout@v4
+      - name: Login to Fly.io registry
+        uses: docker/login-action@v3
+        with:
+          registry: registry.fly.io
+          username: x
+          password: ${{ secrets.FLY_API_TOKEN }}
+      - name: Build and push image
+        run: |
+          docker build -t registry.fly.io/books-tracker:${{ github.sha }} .
+          docker push registry.fly.io/books-tracker:${{ github.sha }}
       - uses: superfly/flyctl-actions/setup-flyctl@master
-      - run: flyctl deploy --local-only
+      - run: flyctl deploy --image registry.fly.io/books-tracker:${{ github.sha }}
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
