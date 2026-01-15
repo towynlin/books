@@ -147,26 +147,28 @@ export function BookCard({ book, onClick }: BookCardProps) {
         </div>
       )}
 
-      {/* Next Up controls */}
-      <div className="mt-3 pt-3 border-t border-gray-200">
-        {isInNextUp ? (
-          <button
-            onClick={handleRemoveFromNextUp}
-            disabled={removeFromNextUp.isPending}
-            className="w-full px-3 py-2 text-sm font-medium text-red-700 bg-red-50 rounded hover:bg-red-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {removeFromNextUp.isPending ? 'Removing...' : 'Remove from Next Up'}
-          </button>
-        ) : (
-          <button
-            onClick={handleAddToNextUp}
-            disabled={addToNextUp.isPending}
-            className="w-full px-3 py-2 text-sm font-medium text-blue-700 bg-blue-50 rounded hover:bg-blue-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {addToNextUp.isPending ? 'Adding...' : 'Add to Next Up'}
-          </button>
-        )}
-      </div>
+      {/* Next Up controls - not shown for currently reading books */}
+      {book.status !== 'reading' && (
+        <div className="mt-3 pt-3 border-t border-gray-200">
+          {isInNextUp ? (
+            <button
+              onClick={handleRemoveFromNextUp}
+              disabled={removeFromNextUp.isPending}
+              className="w-full px-3 py-2 text-sm font-medium text-red-700 bg-red-50 rounded hover:bg-red-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {removeFromNextUp.isPending ? 'Removing...' : 'Remove from Next Up'}
+            </button>
+          ) : (
+            <button
+              onClick={handleAddToNextUp}
+              disabled={addToNextUp.isPending}
+              className="w-full px-3 py-2 text-sm font-medium text-blue-700 bg-blue-50 rounded hover:bg-blue-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {addToNextUp.isPending ? 'Adding...' : 'Add to Next Up'}
+            </button>
+          )}
+        </div>
+      )}
     </div>
   );
 }
