@@ -1,6 +1,6 @@
 # Multi-stage Dockerfile for production deployment
 # Stage 1: Build frontend
-FROM dhi/node:25.3.0 AS frontend-builder
+FROM dhi.io/node:25.3.0 AS frontend-builder
 
 WORKDIR /app/frontend
 
@@ -18,7 +18,7 @@ ENV VITE_API_URL=""
 RUN npm run build
 
 # Stage 2: Build backend
-FROM dhi/node:25.3.0 AS backend-builder
+FROM dhi.io/node:25.3.0 AS backend-builder
 
 WORKDIR /app/backend
 
@@ -38,7 +38,7 @@ COPY backend/init-db.js ./
 RUN npm run build
 
 # Stage 3: Production runtime
-FROM dhi/node:25.3.0 AS production
+FROM dhi.io/node:25.3.0 AS production
 
 WORKDIR /app
 
