@@ -283,8 +283,8 @@ router.post('/login/verify', async (req, res) => {
       expectedOrigin: rpOrigin,
       expectedRPID: rpID,
       authenticator: {
-        credentialID: new Uint8Array(Buffer.from(dbCredential.credential_id, 'base64')),
-        credentialPublicKey: new Uint8Array(dbCredential.public_key),
+        credentialID: Buffer.from(dbCredential.credential_id, 'base64'),
+        credentialPublicKey: Buffer.from(dbCredential.public_key),
         counter: Number(dbCredential.counter),
       },
     });
