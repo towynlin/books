@@ -4,7 +4,7 @@
 #
 
 app = 'books-tracker'
-primary_region = 'ord'
+primary_region = 'sjc'
 
 [build]
 

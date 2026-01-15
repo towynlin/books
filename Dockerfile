@@ -13,7 +13,8 @@ RUN npm ci
 # Copy frontend source
 COPY frontend/ ./
 
-# Build frontend for production
+# Build frontend for production with empty API URL (same-origin)
+ENV VITE_API_URL=""
 RUN npm run build
 
 # Stage 2: Build backend
