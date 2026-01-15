@@ -102,6 +102,13 @@ export const booksAPI = {
       method: 'POST',
     });
   },
+
+  // Populate cover URLs for books missing them
+  populateCovers: async (): Promise<{ success: boolean; updated: number; message: string }> => {
+    return fetchAPI<{ success: boolean; updated: number; message: string }>('/api/books/populate-covers', {
+      method: 'POST',
+    });
+  },
 };
 
 export const importAPI = {

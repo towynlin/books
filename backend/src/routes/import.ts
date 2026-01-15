@@ -3,6 +3,7 @@ import multer from 'multer';
 import { parse } from 'csv-parse';
 import { query } from '../db';
 import { authenticate } from '../middleware/auth';
+import { getBookCoverUrl } from '../utils/bookCovers';
 
 const router = express.Router();
 const upload = multer({ storage: multer.memoryStorage() });
@@ -34,11 +35,12 @@ interface GoodreadsRow {
 }
 
 function parseISBN(isbn: string): string | null {
-  if (!isbn || isbn === '=""' || isbn === '=""""""') {
+  if (!isbn) {
     return null;
   }
-  // Remove ="" and quotes
-  return isbn.replace(/^=""|"$/g, '').replace(/^"|"$/g, '') || null;
+  // Remove = and " characters from Goodreads CSV format (e.g., ="9780679762881")
+  const cleaned = isbn.replace(/[="]/g, '').trim();
+  return cleaned || null;
 }
 
 function parseDate(dateStr: string): Date | null {
@@ -125,6 +127,9 @@ router.post('/goodreads', upload.single('file'), async (req, res) => {
     for (const row of records) {
       try {
         const myRating = parseIntOrNull(row['My Rating']);
+        const isbn = parseISBN(row['ISBN']);
+        const isbn13 = parseISBN(row['ISBN13']);
+        const coverUrl = getBookCoverUrl(isbn13, isbn);
 
         const result = await query(
           `INSERT INTO books (
@@ -137,9 +142,9 @@ router.post('/goodreads', upload.single('file'), async (req, res) => {
             row['Book Id'] || null,
             row['Title'],
             row['Author'],
-            parseISBN(row['ISBN']),
-            parseISBN(row['ISBN13']),
-            null, // coverUrl - Will be populated later via API
+            isbn,
+            isbn13,
+            coverUrl,
             mapStatus(row['Exclusive Shelf']),
             null, // category - User will categorize manually or use auto-guesser
             null, // dateStarted - User fills in manually

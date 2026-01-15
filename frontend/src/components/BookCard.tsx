@@ -1,5 +1,6 @@
 import { Book } from '../types/book';
 import { useAddToNextUp, useRemoveFromNextUp } from '../hooks/useBooks';
+import { getBookCoverUrl } from '../lib/bookCovers';
 
 interface BookCardProps {
   book: Book;
@@ -28,6 +29,9 @@ export function BookCard({ book, onClick }: BookCardProps) {
 
   const isInNextUp = book.nextUpOrder !== null && book.nextUpOrder !== undefined;
 
+  // Use stored coverUrl, or fall back to generating from ISBN
+  const coverUrl = book.coverUrl || getBookCoverUrl(book.isbn13, book.isbn);
+
   return (
     <div
       onClick={onClick}
@@ -36,9 +40,9 @@ export function BookCard({ book, onClick }: BookCardProps) {
       <div className="flex gap-4">
         {/* Cover thumbnail */}
         <div className="flex-shrink-0">
-          {book.coverUrl ? (
+          {coverUrl ? (
             <img
-              src={book.coverUrl}
+              src={coverUrl}
               alt={`${book.title} cover`}
               className="w-20 h-28 object-cover rounded"
             />

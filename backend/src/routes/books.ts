@@ -2,6 +2,7 @@ import express from 'express';
 import { z } from 'zod';
 import { query, getClient } from '../db';
 import { authenticate } from '../middleware/auth';
+import { getBookCoverUrl } from '../utils/bookCovers';
 
 const router = express.Router();
 
@@ -298,6 +299,40 @@ router.post('/:id/remove-from-next-up', async (req, res) => {
   } catch (error) {
     console.error('Error removing book from next-up:', error);
     res.status(500).json({ error: 'Failed to remove book from next-up list' });
+  }
+});
+
+// POST /api/books/populate-covers - Populate cover URLs for books missing them
+router.post('/populate-covers', async (req, res) => {
+  try {
+    // Find books with ISBN but no cover URL
+    const booksResult = await query(
+      `SELECT id, isbn, isbn13 FROM books
+       WHERE cover_url IS NULL
+       AND (isbn IS NOT NULL OR isbn13 IS NOT NULL)`
+    );
+
+    const updated: string[] = [];
+
+    for (const book of booksResult.rows) {
+      const coverUrl = getBookCoverUrl(book.isbn13, book.isbn);
+      if (coverUrl) {
+        await query(
+          'UPDATE books SET cover_url = $1 WHERE id = $2',
+          [coverUrl, book.id]
+        );
+        updated.push(book.id);
+      }
+    }
+
+    res.json({
+      success: true,
+      updated: updated.length,
+      message: `Populated cover URLs for ${updated.length} books`
+    });
+  } catch (error) {
+    console.error('Error populating covers:', error);
+    res.status(500).json({ error: 'Failed to populate cover URLs' });
   }
 });
 
