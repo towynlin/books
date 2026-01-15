@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { Book } from '../types/book';
-import { useAddToNextUp, useRemoveFromNextUp, useDeleteBook } from '../hooks/useBooks';
+import { useAddToNextUp, useRemoveFromNextUp, useDeleteBook, useUpdateBook } from '../hooks/useBooks';
 import { getBookCoverUrl } from '../lib/bookCovers';
 
 interface BookCardProps {
@@ -12,6 +12,7 @@ export function BookCard({ book, onClick }: BookCardProps) {
   const addToNextUp = useAddToNextUp();
   const removeFromNextUp = useRemoveFromNextUp();
   const deleteBook = useDeleteBook();
+  const updateBook = useUpdateBook();
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -56,6 +57,12 @@ export function BookCard({ book, onClick }: BookCardProps) {
     }
   };
 
+  const handleSetCategory = (e: React.MouseEvent, category: 'fiction' | 'nonfiction') => {
+    e.stopPropagation();
+    setMenuOpen(false);
+    updateBook.mutate({ id: book.id, data: { category } });
+  };
+
   const isInNextUp = book.nextUpOrder !== null && book.nextUpOrder !== undefined;
 
   // Use stored coverUrl, or fall back to generating from ISBN
@@ -78,7 +85,23 @@ export function BookCard({ book, onClick }: BookCardProps) {
           </svg>
         </button>
         {menuOpen && (
-          <div className="absolute right-0 mt-1 w-32 bg-white rounded-md shadow-lg border border-gray-200 py-1 z-10">
+          <div className="absolute right-0 mt-1 w-36 bg-white rounded-md shadow-lg border border-gray-200 py-1 z-10">
+            {book.category !== 'fiction' && (
+              <button
+                onClick={(e) => handleSetCategory(e, 'fiction')}
+                className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
+              >
+                Mark as Fiction
+              </button>
+            )}
+            {book.category !== 'nonfiction' && (
+              <button
+                onClick={(e) => handleSetCategory(e, 'nonfiction')}
+                className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
+              >
+                Mark as Nonfiction
+              </button>
+            )}
             <button
               onClick={handleDelete}
               className="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50"
