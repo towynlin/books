@@ -29,10 +29,10 @@ export function BookCard({ book, onClick }: BookCardProps) {
   }, [menuOpen]);
 
   const categoryBadgeColor = book.category === 'fiction'
-    ? 'bg-purple-100 text-purple-800'
+    ? 'bg-soft-peach text-terracotta'
     : book.category === 'nonfiction'
-    ? 'bg-blue-100 text-blue-800'
-    : 'bg-gray-100 text-gray-800';
+    ? 'bg-forest-green/10 text-forest-green'
+    : 'bg-soft-peach text-charcoal';
 
   const handleAddToNextUp = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -71,13 +71,13 @@ export function BookCard({ book, onClick }: BookCardProps) {
   return (
     <div
       onClick={onClick}
-      className="bg-white rounded-lg shadow-md p-4 hover:shadow-lg transition-shadow cursor-pointer relative"
+      className="bg-white rounded-2xl shadow-md hover:shadow-xl transition-all p-4 cursor-pointer relative hover:-translate-y-1 border border-soft-peach/20"
     >
       {/* Three-dots menu */}
       <div ref={menuRef} className="absolute top-2 right-2">
         <button
           onClick={handleMenuToggle}
-          className="p-1 text-gray-400 hover:text-gray-600 rounded hover:bg-gray-100"
+          className="p-1 text-charcoal/40 hover:text-charcoal rounded hover:bg-soft-peach/50"
           aria-label="Book options"
         >
           <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
@@ -85,11 +85,11 @@ export function BookCard({ book, onClick }: BookCardProps) {
           </svg>
         </button>
         {menuOpen && (
-          <div className="absolute right-0 mt-1 w-36 bg-white rounded-md shadow-lg border border-gray-200 py-1 z-10">
+          <div className="absolute right-0 mt-1 w-36 bg-white rounded-xl shadow-lg border-2 border-soft-peach py-1 z-10">
             {book.category !== 'fiction' && (
               <button
                 onClick={(e) => handleSetCategory(e, 'fiction')}
-                className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
+                className="w-full px-4 py-2 text-left text-sm text-charcoal hover:bg-soft-peach/30"
               >
                 Mark as Fiction
               </button>
@@ -97,14 +97,14 @@ export function BookCard({ book, onClick }: BookCardProps) {
             {book.category !== 'nonfiction' && (
               <button
                 onClick={(e) => handleSetCategory(e, 'nonfiction')}
-                className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
+                className="w-full px-4 py-2 text-left text-sm text-charcoal hover:bg-soft-peach/30"
               >
                 Mark as Nonfiction
               </button>
             )}
             <button
               onClick={handleDelete}
-              className="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50"
+              className="w-full px-4 py-2 text-left text-sm text-terracotta hover:bg-soft-peach"
             >
               Delete
             </button>
@@ -119,10 +119,10 @@ export function BookCard({ book, onClick }: BookCardProps) {
             <img
               src={coverUrl}
               alt={`${book.title} cover`}
-              className="w-20 h-28 object-cover rounded"
+              className="w-20 h-28 object-cover rounded-xl"
             />
           ) : (
-            <div className="w-20 h-28 bg-gray-200 rounded flex items-center justify-center text-gray-400 text-xs text-center p-2">
+            <div className="w-20 h-28 bg-soft-peach rounded-xl flex items-center justify-center text-terracotta text-xs text-center p-2">
               No cover
             </div>
           )}
@@ -130,12 +130,12 @@ export function BookCard({ book, onClick }: BookCardProps) {
 
         {/* Book info */}
         <div className="flex-1 min-w-0">
-          <h3 className="font-semibold text-lg truncate">{book.title}</h3>
-          <p className="text-gray-600 text-sm truncate">{book.author}</p>
+          <h3 className="font-semibold font-serif text-lg text-forest-green truncate">{book.title}</h3>
+          <p className="text-terracotta text-sm truncate">{book.author}</p>
 
           {/* Category badge */}
           {book.category && (
-            <span className={`inline-block mt-2 px-2 py-1 rounded text-xs font-medium ${categoryBadgeColor}`}>
+            <span className={`inline-block mt-2 px-2 py-1 rounded-full text-xs font-semibold ${categoryBadgeColor}`}>
               {book.category}
             </span>
           )}
@@ -144,7 +144,7 @@ export function BookCard({ book, onClick }: BookCardProps) {
           {book.myRating && (
             <div className="mt-2 flex items-center gap-1">
               {Array.from({ length: 5 }).map((_, i) => (
-                <span key={i} className={i < book.myRating! ? 'text-yellow-400' : 'text-gray-300'}>
+                <span key={i} className={i < book.myRating! ? 'text-terracotta' : 'text-soft-peach'}>
                   ★
                 </span>
               ))}
@@ -152,7 +152,7 @@ export function BookCard({ book, onClick }: BookCardProps) {
           )}
 
           {/* Dates */}
-          <div className="mt-2 text-xs text-gray-500">
+          <div className="mt-2 text-xs text-charcoal/60">
             {book.dateStarted && (
               <div>Started: {new Date(book.dateStarted).toLocaleDateString()}</div>
             )}
@@ -165,19 +165,19 @@ export function BookCard({ book, onClick }: BookCardProps) {
 
       {/* Notes preview */}
       {book.notes && (
-        <div className="mt-3 text-sm text-gray-600 line-clamp-2">
+        <div className="mt-3 text-sm text-charcoal/80 line-clamp-2">
           {book.notes}
         </div>
       )}
 
       {/* Next Up controls - not shown for currently reading books */}
       {book.status !== 'reading' && (
-        <div className="mt-3 pt-3 border-t border-gray-200">
+        <div className="mt-3 pt-3 border-t-2 border-soft-peach/50">
           {isInNextUp ? (
             <button
               onClick={handleRemoveFromNextUp}
               disabled={removeFromNextUp.isPending}
-              className="w-full px-3 py-2 text-sm font-medium text-red-700 bg-red-50 rounded hover:bg-red-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full px-3 py-2 text-sm font-semibold text-terracotta bg-soft-peach rounded-full hover:bg-terracotta hover:text-white transition-all disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {removeFromNextUp.isPending ? 'Removing...' : 'Remove from Next Up'}
             </button>
@@ -185,7 +185,7 @@ export function BookCard({ book, onClick }: BookCardProps) {
             <button
               onClick={handleAddToNextUp}
               disabled={addToNextUp.isPending}
-              className="w-full px-3 py-2 text-sm font-medium text-blue-700 bg-blue-50 rounded hover:bg-blue-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full px-3 py-2 text-sm font-semibold text-white bg-forest-green rounded-full hover:bg-forest-green/90 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {addToNextUp.isPending ? 'Adding...' : 'Add to Next Up'}
             </button>

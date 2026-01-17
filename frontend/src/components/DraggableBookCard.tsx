@@ -29,7 +29,7 @@ export function DraggableBookCard({ book }: DraggableBookCardProps) {
       <div
         {...attributes}
         {...listeners}
-        className="absolute -left-2 top-1/2 -translate-y-1/2 cursor-grab active:cursor-grabbing z-10 bg-gray-200 hover:bg-gray-300 rounded-full p-2 touch-none"
+        className="absolute -left-2 top-1/2 -translate-y-1/2 cursor-grab active:cursor-grabbing z-10 bg-soft-peach hover:bg-terracotta hover:text-white rounded-full p-2 touch-none transition-colors"
         title="Drag to reorder"
       >
         <svg
@@ -38,7 +38,7 @@ export function DraggableBookCard({ book }: DraggableBookCardProps) {
           viewBox="0 0 16 16"
           fill="none"
           xmlns="http://www.w3.org/2000/svg"
-          className="text-gray-600"
+          className="text-terracotta hover:text-white transition-colors"
         >
           <circle cx="6" cy="4" r="1.5" fill="currentColor" />
           <circle cx="10" cy="4" r="1.5" fill="currentColor" />
