@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useBooks } from '../hooks/useBooks';
 import { BookCard } from '../components/BookCard';
 import { DraggableBookList } from '../components/DraggableBookList';
+import { BookSearchBar } from '../components/BookSearchBar';
 import { BookStatus } from '../types/book';
 
 type ViewTab = 'reading' | 'read' | 'want_to_read' | 'next_up';
@@ -36,6 +37,11 @@ export function Home() {
         <div className="mb-8">
           <h1 className="text-4xl font-bold font-serif text-forest-green mb-2">My Books</h1>
           <p className="text-terracotta font-medium">Track your reading journey</p>
+        </div>
+
+        {/* Search Bar */}
+        <div className="mb-8 flex justify-center">
+          <BookSearchBar />
         </div>
 
         {/* Tabs */}

@@ -6,6 +6,7 @@ import { endPool } from './db';
 import bookRoutes from './routes/books';
 import importRoutes from './routes/import';
 import authRoutes from './routes/auth';
+import searchRoutes from './routes/search';
 
 dotenv.config();
 
@@ -24,6 +25,7 @@ app.use(express.urlencoded({ extended: true }));
 app.use('/api/books', bookRoutes);
 app.use('/api/import', importRoutes);
 app.use('/api/auth', authRoutes);
+app.use('/api/search', searchRoutes);
 
 // Health check
 app.get('/health', (req, res) => {

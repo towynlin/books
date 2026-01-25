@@ -118,6 +118,27 @@ export const booksAPI = {
   },
 };
 
+export interface SearchResult {
+  id: string;
+  title: string;
+  author: string;
+  year?: number;
+  isbn?: string;
+  isbn13?: string;
+  coverUrl?: string;
+  publisher?: string;
+  pages?: number;
+}
+
+export const searchAPI = {
+  // Search for books using Open Library API
+  searchBooks: async (query: string): Promise<{ total: number; results: SearchResult[] }> => {
+    const params = new URLSearchParams();
+    params.append('q', query);
+    return fetchAPI<{ total: number; results: SearchResult[] }>(`/api/search?${params.toString()}`);
+  },
+};
+
 export const importAPI = {
   // Import Goodreads CSV
   importGoodreads: async (file: File): Promise<{
