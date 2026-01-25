@@ -2,6 +2,8 @@
 
 -- Drop existing tables if they exist
 DROP TABLE IF EXISTS passkey_credentials CASCADE;
+DROP TABLE IF EXISTS recovery_codes CASCADE;
+DROP TABLE IF EXISTS setup_tokens CASCADE;
 DROP TABLE IF EXISTS users CASCADE;
 DROP TABLE IF EXISTS books CASCADE;
 

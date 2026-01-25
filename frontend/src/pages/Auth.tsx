@@ -96,8 +96,8 @@ export function Auth() {
         // Get login options from server
         const options = await authAPI.getLoginOptions(username);
 
-        // Start WebAuthn authentication
-        const credential = await startAuthentication({ optionsJSON: options });
+        // Start WebAuthn authentication (disable conditional mediation to avoid state issues after logout)
+        const credential = await startAuthentication({ optionsJSON: options, useBrowserAutofill: false });
 
         // Verify login with server
         const response = await authAPI.verifyLogin(username, credential);

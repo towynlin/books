@@ -16,11 +16,6 @@ import { authenticate, AuthRequest } from '../middleware/auth';
 
 const router = express.Router();
 
-// Helper to convert base64 to base64url
-function base64ToBase64url(base64: string): string {
-  return base64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
-}
-
 // Relying Party configuration
 const rpName = process.env.RP_NAME || 'Books Tracker';
 const rpID = process.env.RP_ID || 'localhost';
@@ -118,6 +113,7 @@ router.post('/register/verify', async (req, res) => {
       return res.status(400).json({ error: 'Verification failed' });
     }
 
+    // In v10+, credentialID is a base64url string (not Uint8Array)
     const { credentialID, credentialPublicKey, counter } = verification.registrationInfo;
 
     // Get transports from the response
@@ -130,11 +126,12 @@ router.post('/register/verify', async (req, res) => {
     );
     const user = userResult.rows[0];
 
+    // credentialID is already a base64url string, store it directly
     await query(
       'INSERT INTO passkey_credentials (user_id, credential_id, public_key, counter, transports) VALUES ($1, $2, $3, $4, $5)',
       [
         user.id,
-        Buffer.from(credentialID).toString('base64'),
+        credentialID,
         Buffer.from(credentialPublicKey),
         counter,
         transports,
@@ -212,11 +209,12 @@ router.post('/login/options', async (req, res) => {
     );
 
     // Generate authentication options
+    // credential_id is stored as base64url, use it directly
     const options = await generateAuthenticationOptions({
       rpID,
       allowCredentials: credentialsResult.rows.length > 0
         ? credentialsResult.rows.map((cred: any) => ({
-            id: base64ToBase64url(cred.credential_id),
+            id: cred.credential_id,
             type: 'public-key' as const,
             transports: cred.transports || [],
           }))
@@ -264,10 +262,10 @@ router.post('/login/verify', async (req, res) => {
 
     const user = userResult.rows[0];
 
-    const credentialIdBase64 = Buffer.from(credential.rawId, 'base64').toString('base64');
+    // credential.rawId from browser is base64url, stored credential_id is also base64url
     const credentialResult = await query(
       'SELECT id, credential_id, public_key, counter FROM passkey_credentials WHERE user_id = $1 AND credential_id = $2',
-      [user.id, credentialIdBase64]
+      [user.id, credential.rawId]
     );
 
     if (credentialResult.rows.length === 0) {
@@ -277,13 +275,14 @@ router.post('/login/verify', async (req, res) => {
     const dbCredential = credentialResult.rows[0];
 
     // Verify the authentication
+    // credential_id is stored as base64url, use it directly
     const verification = await verifyAuthenticationResponse({
       response: credential,
       expectedChallenge,
       expectedOrigin: rpOrigin,
       expectedRPID: rpID,
       authenticator: {
-        credentialID: base64ToBase64url(dbCredential.credential_id),
+        credentialID: dbCredential.credential_id,
         credentialPublicKey: dbCredential.public_key,
         counter: Number(dbCredential.counter),
       },
@@ -487,7 +486,7 @@ router.post('/passkeys/add-options', authenticate, async (req: AuthRequest, res)
       userName: username,
       attestationType: 'none',
       excludeCredentials: existingCreds.rows.map((cred: any) => ({
-        id: base64ToBase64url(cred.credential_id),
+        id: cred.credential_id,
         type: 'public-key' as const,
       })),
       authenticatorSelection: {
@@ -543,17 +542,19 @@ router.post('/passkeys/add-verify', authenticate, async (req: AuthRequest, res) 
       return res.status(400).json({ error: 'Verification failed' });
     }
 
+    // In v10+, credentialID is a base64url string (not Uint8Array)
     const { credentialID, credentialPublicKey, counter } = verification.registrationInfo;
 
     // Get transports from the response
     const transports = credential.response.transports || [];
 
     // Add credential to database
+    // credentialID is already a base64url string, store it directly
     await query(
       'INSERT INTO passkey_credentials (user_id, credential_id, public_key, counter, device_name, transports) VALUES ($1, $2, $3, $4, $5, $6)',
       [
         userId,
-        Buffer.from(credentialID).toString('base64'),
+        credentialID,
         Buffer.from(credentialPublicKey),
         counter,
         deviceName || null,
@@ -725,7 +726,7 @@ router.post('/setup-token/register-options', async (req, res) => {
       userName: tokenData.username,
       attestationType: 'none',
       excludeCredentials: existingCreds.rows.map((cred: any) => ({
-        id: base64ToBase64url(cred.credential_id),
+        id: cred.credential_id,
         type: 'public-key' as const,
       })),
       authenticatorSelection: {
@@ -800,14 +801,16 @@ router.post('/setup-token/register-verify', async (req, res) => {
       return res.status(400).json({ error: 'Verification failed' });
     }
 
+    // In v10+, credentialID is a base64url string (not Uint8Array)
     const { credentialID, credentialPublicKey, counter } = verification.registrationInfo;
 
     // Add credential to database
+    // credentialID is already a base64url string, store it directly
     await query(
       'INSERT INTO passkey_credentials (user_id, credential_id, public_key, counter, device_name) VALUES ($1, $2, $3, $4, $5)',
       [
         tokenData.user_id,
-        Buffer.from(credentialID).toString('base64'),
+        credentialID,
         Buffer.from(credentialPublicKey),
         counter,
         deviceName || null,
