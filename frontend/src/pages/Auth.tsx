@@ -116,10 +116,10 @@ export function Auth() {
 
   if (checkingStatus) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <div className="min-h-screen flex items-center justify-center bg-warm-cream">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Loading...</p>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-terracotta mx-auto"></div>
+          <p className="mt-4 text-charcoal opacity-80">Loading...</p>
         </div>
       </div>
     );
@@ -127,32 +127,32 @@ export function Auth() {
 
   if (recoveryCodes) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
+      <div className="min-h-screen flex items-center justify-center bg-warm-cream py-12 px-4 sm:px-6 lg:px-8">
         <div className="max-w-2xl w-full space-y-8">
           <div className="text-center">
-            <div className="mx-auto h-12 w-12 rounded-full bg-green-100 flex items-center justify-center">
-              <svg className="h-6 w-6 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <div className="mx-auto h-12 w-12 rounded-full bg-forest-green/10 flex items-center justify-center">
+              <svg className="h-6 w-6 text-forest-green" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
               </svg>
             </div>
-            <h2 className="mt-6 text-3xl font-extrabold text-gray-900">
+            <h2 className="mt-6 text-3xl font-bold font-serif text-forest-green">
               Account Created Successfully!
             </h2>
           </div>
 
-          <div className="bg-white shadow rounded-lg p-6 space-y-4">
-            <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-4">
+          <div className="bg-white shadow-xl rounded-2xl p-6 space-y-4 border-2 border-soft-peach">
+            <div className="bg-soft-peach border-l-4 border-terracotta rounded-r-xl p-4 mb-4">
               <div className="flex">
                 <div className="flex-shrink-0">
-                  <svg className="h-5 w-5 text-yellow-400" viewBox="0 0 20 20" fill="currentColor">
+                  <svg className="h-5 w-5 text-terracotta" viewBox="0 0 20 20" fill="currentColor">
                     <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
                   </svg>
                 </div>
                 <div className="ml-3">
-                  <h3 className="text-sm font-medium text-yellow-800">
+                  <h3 className="text-sm font-semibold text-terracotta">
                     Save Your Recovery Codes
                   </h3>
-                  <div className="mt-2 text-sm text-yellow-700">
+                  <div className="mt-2 text-sm text-charcoal/80">
                     <p>
                       These codes can be used to access your account if you lose access to your passkey.
                       Each code can only be used once. Store them somewhere safe!
@@ -162,10 +162,10 @@ export function Auth() {
               </div>
             </div>
 
-            <div className="bg-gray-50 p-4 rounded border border-gray-200">
+            <div className="bg-warm-cream p-4 rounded-xl border-2 border-soft-peach">
               <div className="grid grid-cols-2 gap-2 font-mono text-sm">
                 {recoveryCodes.map((code, index) => (
-                  <div key={index} className="text-gray-800">{code}</div>
+                  <div key={index} className="text-charcoal font-medium">{code}</div>
                 ))}
               </div>
             </div>
@@ -175,15 +175,15 @@ export function Auth() {
                 navigator.clipboard.writeText(recoveryCodes.join('\n'));
                 alert('Recovery codes copied to clipboard!');
               }}
-              className="w-full py-2 px-4 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+              className="w-full py-2 px-4 border-2 border-forest-green rounded-full text-sm font-semibold text-forest-green bg-white hover:bg-forest-green hover:text-white transition-all focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-forest-green"
             >
               Copy All Codes
             </button>
 
-            <div className="pt-4 border-t border-gray-200">
+            <div className="pt-4 border-t-2 border-soft-peach">
               <button
                 onClick={() => navigate('/')}
-                className="w-full py-2 px-4 border border-transparent rounded-md text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                className="w-full py-2 px-4 border border-transparent rounded-full text-sm font-semibold text-white bg-terracotta hover:bg-terracotta/90 transition-all focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-terracotta"
               >
                 Continue to App
               </button>
@@ -195,19 +195,19 @@ export function Auth() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen flex items-center justify-center bg-warm-cream py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md w-full space-y-8">
         <div>
-          <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
+          <h2 className="mt-6 text-center text-3xl font-bold font-serif text-forest-green">
             Books Tracker
           </h2>
-          <p className="mt-2 text-center text-sm text-gray-600">
+          <p className="mt-2 text-center text-sm text-terracotta font-medium">
             {hasUser ? 'Sign in with your passkey' : 'Create your account with a passkey'}
           </p>
         </div>
 
         <form className="mt-8 space-y-6" onSubmit={hasUser ? handleLogin : handleRegister}>
-          <div className="rounded-md shadow-sm space-y-3">
+          <div className="rounded-2xl shadow-sm space-y-3">
             <div>
               <label htmlFor="username" className="sr-only">
                 Username
@@ -218,7 +218,7 @@ export function Auth() {
                 type="text"
                 autoComplete="username"
                 required
-                className="appearance-none rounded-md relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                className="appearance-none rounded-full relative block w-full px-4 py-3 border-2 border-soft-peach placeholder-charcoal/40 text-charcoal bg-white focus:outline-none focus:ring-2 focus:ring-forest-green focus:border-forest-green sm:text-sm"
                 placeholder="Username"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
@@ -236,7 +236,7 @@ export function Auth() {
                   name="recoveryCode"
                   type="text"
                   required
-                  className="appearance-none rounded-md relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm font-mono"
+                  className="appearance-none rounded-full relative block w-full px-4 py-3 border-2 border-soft-peach placeholder-charcoal/40 text-charcoal bg-white focus:outline-none focus:ring-2 focus:ring-forest-green focus:border-forest-green sm:text-sm font-mono"
                   placeholder="XXXX-XXXX-XXXX-XXXX"
                   value={recoveryCode}
                   onChange={(e) => setRecoveryCode(e.target.value.toUpperCase())}
@@ -247,8 +247,8 @@ export function Auth() {
           </div>
 
           {error && (
-            <div className="rounded-md bg-red-50 p-4">
-              <div className="text-sm text-red-800">{error}</div>
+            <div className="rounded-2xl bg-soft-peach border-2 border-terracotta p-4">
+              <div className="text-sm text-terracotta font-medium">{error}</div>
             </div>
           )}
 
@@ -256,7 +256,7 @@ export function Auth() {
             <button
               type="submit"
               disabled={isLoading}
-              className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-semibold rounded-full text-white bg-forest-green hover:bg-forest-green/90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-forest-green disabled:opacity-50 disabled:cursor-not-allowed transition-all"
             >
               {isLoading ? (
                 <span className="flex items-center">
@@ -287,14 +287,14 @@ export function Auth() {
                   setRecoveryCode('');
                   setError(null);
                 }}
-                className="font-medium text-blue-600 hover:text-blue-500"
+                className="font-semibold text-terracotta hover:text-terracotta/80 transition-colors"
               >
                 {useRecoveryCode ? 'Use passkey instead' : 'Use recovery code instead'}
               </button>
             </div>
           )}
 
-          <div className="text-sm text-center text-gray-600">
+          <div className="text-sm text-center text-charcoal/70">
             <p>
               {hasUser
                 ? useRecoveryCode

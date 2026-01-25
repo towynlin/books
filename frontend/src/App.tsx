@@ -25,41 +25,41 @@ function Navigation() {
   }
 
   return (
-    <nav className="bg-white shadow-sm border-b">
+    <nav className="bg-white shadow-md border-b border-soft-peach">
       <div className="max-w-7xl mx-auto px-4">
         <div className="flex justify-between items-center h-16">
           <div className="flex items-center gap-8">
-            <Link to="/" className="text-2xl font-bold text-blue-600">
+            <Link to="/" className="text-2xl font-bold font-serif text-forest-green">
               Books
             </Link>
             <div className="flex gap-4">
               <Link
                 to="/"
-                className="text-gray-700 hover:text-blue-600 transition-colors"
+                className="text-charcoal/80 hover:text-terracotta transition-colors"
               >
                 Library
               </Link>
               <Link
                 to="/import"
-                className="text-gray-700 hover:text-blue-600 transition-colors"
+                className="text-charcoal/80 hover:text-terracotta transition-colors"
               >
                 Import
               </Link>
               <Link
                 to="/passkeys"
-                className="text-gray-700 hover:text-blue-600 transition-colors"
+                className="text-charcoal/80 hover:text-terracotta transition-colors"
               >
                 Passkeys
               </Link>
             </div>
           </div>
           <div className="flex items-center gap-4">
-            <span className="text-sm text-gray-600">
+            <span className="text-sm text-charcoal/60">
               {user?.username}
             </span>
             <button
               onClick={logout}
-              className="text-sm text-gray-700 hover:text-blue-600 transition-colors"
+              className="text-sm text-terracotta hover:text-terracotta/80 transition-colors"
             >
               Logout
             </button>
@@ -72,7 +72,7 @@ function Navigation() {
 
 function AppRoutes() {
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-warm-cream">
       <Navigation />
 
       <Routes>

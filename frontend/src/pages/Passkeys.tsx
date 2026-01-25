@@ -106,8 +106,8 @@ export function Passkeys() {
     return (
       <div className="max-w-4xl mx-auto p-6">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Loading...</p>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-terracotta mx-auto"></div>
+          <p className="mt-4 text-charcoal/60">Loading...</p>
         </div>
       </div>
     );
@@ -115,53 +115,53 @@ export function Passkeys() {
 
   return (
     <div className="max-w-4xl mx-auto p-6">
-      <h1 className="text-3xl font-bold mb-6">Manage Passkeys</h1>
+      <h1 className="text-3xl font-bold font-serif text-forest-green mb-6">Manage Passkeys</h1>
 
-      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
-        <h2 className="font-semibold text-blue-900 mb-2">About Passkeys</h2>
-        <p className="text-blue-800 text-sm">
+      <div className="bg-soft-peach border-l-4 border-terracotta rounded-r-xl p-4 mb-6">
+        <h2 className="font-semibold font-serif text-forest-green mb-2">About Passkeys</h2>
+        <p className="text-charcoal/80 text-sm">
           Passkeys are a secure way to log in without passwords. You can add multiple passkeys for different devices (phone, laptop, etc.).
           When logging in from a new device, you can scan a QR code with your phone to authenticate.
         </p>
       </div>
 
       {error && (
-        <div className="rounded-md bg-red-50 p-4 mb-6">
-          <div className="text-sm text-red-800">{error}</div>
+        <div className="rounded-2xl bg-soft-peach border-2 border-terracotta p-4 mb-6">
+          <div className="text-sm text-terracotta">{error}</div>
         </div>
       )}
 
       {success && (
-        <div className="rounded-md bg-green-50 p-4 mb-6">
-          <div className="text-sm text-green-800">{success}</div>
+        <div className="rounded-2xl bg-forest-green/10 border-2 border-forest-green p-4 mb-6">
+          <div className="text-sm text-forest-green">{success}</div>
         </div>
       )}
 
-      <div className="bg-white shadow rounded-lg p-6 mb-6">
-        <h2 className="text-xl font-semibold mb-4">Add Another Device</h2>
-        <p className="text-sm text-gray-600 mb-4">
+      <div className="bg-white shadow-md rounded-2xl border border-soft-peach/20 p-6 mb-6">
+        <h2 className="text-xl font-semibold font-serif text-forest-green mb-4">Add Another Device</h2>
+        <p className="text-sm text-charcoal/60 mb-4">
           Generate a time-limited link to add a passkey on another device (phone, tablet, another computer, etc.).
           The link expires in 30 minutes.
         </p>
         <button
           onClick={handleGenerateSetupLink}
           disabled={isGeneratingLink}
-          className="w-full py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed mb-4"
+          className="w-full py-3 px-4 text-sm font-medium rounded-full text-white bg-forest-green hover:bg-forest-green/90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-forest-green disabled:opacity-50 disabled:cursor-not-allowed mb-4 transition-colors"
         >
           {isGeneratingLink ? 'Generating...' : 'Generate Setup Link'}
         </button>
 
         {setupLink && (
           <div className="space-y-3">
-            <div className="bg-gray-50 p-4 rounded border border-gray-200">
-              <p className="text-xs font-mono break-all text-gray-800">{setupLink}</p>
+            <div className="bg-soft-peach/30 p-4 rounded-xl border border-soft-peach">
+              <p className="text-xs font-mono break-all text-charcoal">{setupLink}</p>
             </div>
             <button
               onClick={() => {
                 navigator.clipboard.writeText(setupLink);
                 alert('Link copied to clipboard!');
               }}
-              className="w-full py-2 px-4 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+              className="w-full py-3 px-4 border-2 border-forest-green rounded-full text-sm font-medium text-forest-green bg-white hover:bg-forest-green hover:text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-forest-green transition-colors"
             >
               Copy Link
             </button>
@@ -169,57 +169,57 @@ export function Passkeys() {
         )}
       </div>
 
-      <div className="bg-white shadow rounded-lg p-6 mb-6">
-        <h2 className="text-xl font-semibold mb-4">Add New Passkey</h2>
+      <div className="bg-white shadow-md rounded-2xl border border-soft-peach/20 p-6 mb-6">
+        <h2 className="text-xl font-semibold font-serif text-forest-green mb-4">Add New Passkey</h2>
         <form onSubmit={handleAddPasskey} className="space-y-4">
           <div>
-            <label htmlFor="deviceName" className="block text-sm font-medium text-gray-700 mb-1">
+            <label htmlFor="deviceName" className="block text-sm font-medium text-charcoal mb-1">
               Device Name (Optional)
             </label>
             <input
               id="deviceName"
               type="text"
-              className="appearance-none rounded-md relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+              className="appearance-none rounded-full relative block w-full px-4 py-2 border-2 border-soft-peach placeholder-charcoal/40 text-charcoal focus:outline-none focus:ring-2 focus:ring-forest-green focus:border-forest-green sm:text-sm transition-colors"
               placeholder="e.g., My iPhone, Work Laptop"
               value={deviceName}
               onChange={(e) => setDeviceName(e.target.value)}
               disabled={isAdding}
             />
-            <p className="mt-1 text-sm text-gray-500">
+            <p className="mt-1 text-sm text-charcoal/60">
               Give this passkey a name to help you remember which device it's for
             </p>
           </div>
           <button
             type="submit"
             disabled={isAdding}
-            className="w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full flex justify-center py-3 px-4 text-sm font-medium rounded-full text-white bg-forest-green hover:bg-forest-green/90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-forest-green disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             {isAdding ? 'Adding Passkey...' : 'Add Passkey for This Device'}
           </button>
         </form>
       </div>
 
-      <div className="bg-white shadow rounded-lg p-6">
-        <h2 className="text-xl font-semibold mb-4">Your Passkeys</h2>
+      <div className="bg-white shadow-md rounded-2xl border border-soft-peach/20 p-6">
+        <h2 className="text-xl font-semibold font-serif text-forest-green mb-4">Your Passkeys</h2>
         {passkeys.length === 0 ? (
-          <p className="text-gray-500 text-sm">No passkeys found.</p>
+          <p className="text-charcoal/60 text-sm">No passkeys found.</p>
         ) : (
           <div className="space-y-3">
             {passkeys.map((passkey) => (
               <div
                 key={passkey.id}
-                className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50"
+                className="flex items-center justify-between p-4 border border-soft-peach rounded-xl hover:bg-soft-peach/30 transition-colors"
               >
                 <div>
-                  <h3 className="font-medium text-gray-900">{passkey.deviceName}</h3>
-                  <p className="text-sm text-gray-500">
+                  <h3 className="font-medium text-charcoal">{passkey.deviceName}</h3>
+                  <p className="text-sm text-charcoal/60">
                     Added {new Date(passkey.createdAt).toLocaleDateString()}
                   </p>
                 </div>
                 {passkeys.length > 1 && (
                   <button
                     onClick={() => handleDeletePasskey(passkey.id)}
-                    className="text-red-600 hover:text-red-800 text-sm font-medium"
+                    className="text-terracotta hover:text-terracotta/80 text-sm font-medium transition-colors"
                   >
                     Delete
                   </button>
@@ -229,7 +229,7 @@ export function Passkeys() {
           </div>
         )}
         {passkeys.length === 1 && (
-          <p className="mt-4 text-sm text-gray-500">
+          <p className="mt-4 text-sm text-charcoal/60">
             You must have at least one passkey. Add another passkey before deleting this one.
           </p>
         )}
