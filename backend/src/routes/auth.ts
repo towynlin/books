@@ -11,8 +11,34 @@ import type {
   RegistrationResponseJSON,
   AuthenticationResponseJSON,
 } from '@simplewebauthn/server/script/deps';
-import { query } from '../db';
+import { query, getClient } from '../db';
 import { authenticate, AuthRequest } from '../middleware/auth';
+
+// Helper to validate invitation tokens
+// Returns { valid: true, id: string } or { valid: false, error: string }
+async function validateInvitationToken(token: string): Promise<
+  | { valid: true; id: string }
+  | { valid: false; error: string }
+> {
+  const result = await query(
+    `SELECT id, expires_at, used FROM invitation_tokens WHERE token = $1`,
+    [token]
+  );
+
+  if (result.rows.length === 0) {
+    return { valid: false, error: 'Invalid invitation token' };
+  }
+
+  const tokenData = result.rows[0];
+  if (tokenData.used) {
+    return { valid: false, error: 'This invitation has already been used' };
+  }
+  if (new Date(tokenData.expires_at) < new Date()) {
+    return { valid: false, error: 'This invitation has expired' };
+  }
+
+  return { valid: true, id: tokenData.id };
+}
 
 const router = express.Router();
 
@@ -28,17 +54,26 @@ const challenges = new Map<string, string>();
 // POST /api/auth/register/options - Get registration options
 router.post('/register/options', async (req, res) => {
   try {
-    const { username } = req.body;
+    const { username, invitationToken } = req.body;
 
     if (!username || typeof username !== 'string') {
       return res.status(400).json({ error: 'Username is required' });
     }
 
-    // Check if any users exist (single-user mode)
+    // Check if any users exist
     const userCountResult = await query('SELECT COUNT(*) FROM users');
     const userCount = parseInt(userCountResult.rows[0].count);
+
+    // If users exist, require valid invitation token
     if (userCount > 0) {
-      return res.status(403).json({ error: 'A user already exists. This is a single-user application.' });
+      if (!invitationToken) {
+        return res.status(403).json({ error: 'Registration requires an invitation' });
+      }
+
+      const validation = await validateInvitationToken(invitationToken);
+      if (!validation.valid) {
+        return res.status(403).json({ error: validation.error });
+      }
     }
 
     // Check if username already exists
@@ -66,8 +101,9 @@ router.post('/register/options', async (req, res) => {
       supportedAlgorithmIDs: [-7, -257], // ES256 and RS256
     });
 
-    // Store challenge temporarily
-    challenges.set(username, options.challenge);
+    // Store challenge temporarily (include invitation token in key if present)
+    const challengeKey = invitationToken ? `${username}:${invitationToken}` : username;
+    challenges.set(challengeKey, options.challenge);
 
     res.json(options);
   } catch (error) {
@@ -79,24 +115,38 @@ router.post('/register/options', async (req, res) => {
 // POST /api/auth/register/verify - Verify registration
 router.post('/register/verify', async (req, res) => {
   try {
-    const { username, credential } = req.body as {
+    const { username, credential, invitationToken } = req.body as {
       username: string;
       credential: RegistrationResponseJSON;
+      invitationToken?: string;
     };
 
     if (!username || !credential) {
       return res.status(400).json({ error: 'Username and credential are required' });
     }
 
-    // Check if any users exist (single-user mode)
+    // Check if any users exist (to determine if this is the first user)
     const userCountResult = await query('SELECT COUNT(*) FROM users');
     const userCount = parseInt(userCountResult.rows[0].count);
-    if (userCount > 0) {
-      return res.status(403).json({ error: 'A user already exists. This is a single-user application.' });
+    const isFirstUser = userCount === 0;
+
+    // If not the first user, require valid invitation token
+    let invitationId: string | null = null;
+    if (!isFirstUser) {
+      if (!invitationToken) {
+        return res.status(403).json({ error: 'Registration requires an invitation' });
+      }
+
+      const validation = await validateInvitationToken(invitationToken);
+      if (!validation.valid) {
+        return res.status(403).json({ error: validation.error });
+      }
+      invitationId = validation.id;
     }
 
-    // Get stored challenge
-    const expectedChallenge = challenges.get(username);
+    // Get stored challenge (check both with and without invitation token)
+    const challengeKey = invitationToken ? `${username}:${invitationToken}` : username;
+    const expectedChallenge = challenges.get(challengeKey);
     if (!expectedChallenge) {
       return res.status(400).json({ error: 'No registration in progress' });
     }
@@ -119,46 +169,67 @@ router.post('/register/verify', async (req, res) => {
     // Get transports from the response
     const transports = credential.response.transports || [];
 
-    // Create user and credential
-    const userResult = await query(
-      'INSERT INTO users (username) VALUES ($1) RETURNING id, username',
-      [username]
-    );
-    const user = userResult.rows[0];
-
-    // credentialID is already a base64url string, store it directly
-    await query(
-      'INSERT INTO passkey_credentials (user_id, credential_id, public_key, counter, transports) VALUES ($1, $2, $3, $4, $5)',
-      [
-        user.id,
-        credentialID,
-        Buffer.from(credentialPublicKey),
-        counter,
-        transports,
-      ]
-    );
-
-    // Clean up challenge
-    challenges.delete(username);
-
-    // Generate 10 recovery codes
+    // Use transaction for all database operations
+    const client = await getClient();
+    let user: { id: string; username: string };
     const recoveryCodes: string[] = [];
-    for (let i = 0; i < 10; i++) {
-      // Generate readable recovery code (e.g., "XXXX-XXXX-XXXX-XXXX")
-      const code = [
-        crypto.randomBytes(2).toString('hex').toUpperCase(),
-        crypto.randomBytes(2).toString('hex').toUpperCase(),
-        crypto.randomBytes(2).toString('hex').toUpperCase(),
-        crypto.randomBytes(2).toString('hex').toUpperCase(),
-      ].join('-');
-      recoveryCodes.push(code);
 
-      // Store in database
-      await query(
-        'INSERT INTO recovery_codes (user_id, code) VALUES ($1, $2)',
-        [user.id, code]
+    try {
+      await client.query('BEGIN');
+
+      // Create user (mark as initial user if first)
+      const userResult = await client.query(
+        'INSERT INTO users (username, is_initial_user) VALUES ($1, $2) RETURNING id, username',
+        [username, isFirstUser]
       );
+      user = userResult.rows[0];
+
+      // Create passkey credential
+      await client.query(
+        'INSERT INTO passkey_credentials (user_id, credential_id, public_key, counter, transports) VALUES ($1, $2, $3, $4, $5)',
+        [
+          user.id,
+          credentialID,
+          Buffer.from(credentialPublicKey),
+          counter,
+          transports,
+        ]
+      );
+
+      // Mark invitation as used if applicable
+      if (invitationId) {
+        await client.query(
+          'UPDATE invitation_tokens SET used = TRUE, used_at = NOW(), used_by = $1 WHERE id = $2',
+          [user.id, invitationId]
+        );
+      }
+
+      // Generate and store 10 recovery codes
+      for (let i = 0; i < 10; i++) {
+        const code = [
+          crypto.randomBytes(2).toString('hex').toUpperCase(),
+          crypto.randomBytes(2).toString('hex').toUpperCase(),
+          crypto.randomBytes(2).toString('hex').toUpperCase(),
+          crypto.randomBytes(2).toString('hex').toUpperCase(),
+        ].join('-');
+        recoveryCodes.push(code);
+
+        await client.query(
+          'INSERT INTO recovery_codes (user_id, code) VALUES ($1, $2)',
+          [user.id, code]
+        );
+      }
+
+      await client.query('COMMIT');
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
     }
+
+    // Clean up challenge (after successful transaction)
+    challenges.delete(challengeKey);
 
     // Generate JWT
     const token = jwt.sign(
@@ -174,7 +245,7 @@ router.post('/register/verify', async (req, res) => {
         id: user.id,
         username: user.username,
       },
-      recoveryCodes, // Return recovery codes to show user once
+      recoveryCodes,
     });
   } catch (error) {
     console.error('Error verifying registration:', error);
@@ -386,13 +457,14 @@ router.post('/login/recovery', async (req, res) => {
   }
 });
 
-// GET /api/auth/status - Check if a user exists
+// GET /api/auth/status - Check if a user exists and if registration requires invitation
 router.get('/status', async (req, res) => {
   try {
     const userCountResult = await query('SELECT COUNT(*) FROM users');
     const userCount = parseInt(userCountResult.rows[0].count);
     res.json({
       hasUser: userCount > 0,
+      requiresInvitation: userCount > 0,
     });
   } catch (error) {
     console.error('Error checking auth status:', error);
@@ -744,6 +816,73 @@ router.post('/setup-token/register-options', async (req, res) => {
   } catch (error) {
     console.error('Error generating setup registration options:', error);
     res.status(500).json({ error: 'Failed to generate registration options' });
+  }
+});
+
+// ===== Invitation Endpoints =====
+
+// POST /api/auth/invitation/generate - Generate invitation token (authenticated)
+router.post('/invitation/generate', authenticate, async (req: AuthRequest, res) => {
+  try {
+    const userId = req.user?.userId;
+    if (!userId) {
+      return res.status(401).json({ error: 'Not authenticated' });
+    }
+
+    // Generate a random 64-character token
+    const token = crypto.randomBytes(32).toString('hex');
+
+    // Token expires in 7 days
+    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+
+    // Store token in database
+    await query(
+      'INSERT INTO invitation_tokens (created_by, token, expires_at) VALUES ($1, $2, $3)',
+      [userId, token, expiresAt]
+    );
+
+    res.json({
+      token,
+      expiresAt: expiresAt.toISOString(),
+      inviteUrl: `${rpOrigin}/auth?invite=${token}`,
+    });
+  } catch (error) {
+    console.error('Error generating invitation:', error);
+    res.status(500).json({ error: 'Failed to generate invitation' });
+  }
+});
+
+// GET /api/auth/invitation/validate/:token - Validate invitation token (public)
+router.get('/invitation/validate/:token', async (req, res) => {
+  try {
+    const { token } = req.params;
+
+    const result = await query(
+      `SELECT id, expires_at, used FROM invitation_tokens WHERE token = $1`,
+      [token]
+    );
+
+    if (result.rows.length === 0) {
+      return res.json({ valid: false });
+    }
+
+    const tokenData = result.rows[0];
+
+    if (tokenData.used) {
+      return res.json({ valid: false });
+    }
+
+    if (new Date(tokenData.expires_at) < new Date()) {
+      return res.json({ valid: false });
+    }
+
+    res.json({
+      valid: true,
+      expiresAt: tokenData.expires_at,
+    });
+  } catch (error) {
+    console.error('Error validating invitation:', error);
+    res.status(500).json({ error: 'Failed to validate invitation' });
   }
 });
 

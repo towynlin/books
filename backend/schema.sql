@@ -4,6 +4,7 @@
 DROP TABLE IF EXISTS passkey_credentials CASCADE;
 DROP TABLE IF EXISTS recovery_codes CASCADE;
 DROP TABLE IF EXISTS setup_tokens CASCADE;
+DROP TABLE IF EXISTS invitation_tokens CASCADE;
 DROP TABLE IF EXISTS users CASCADE;
 DROP TABLE IF EXISTS books CASCADE;
 
@@ -15,11 +16,23 @@ DROP TYPE IF EXISTS book_category CASCADE;
 CREATE TYPE book_status AS ENUM ('read', 'reading', 'want_to_read');
 CREATE TYPE book_category AS ENUM ('fiction', 'nonfiction');
 
+-- Users table (must be created before books due to foreign key)
+CREATE TABLE users (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  username TEXT NOT NULL UNIQUE,
+  is_initial_user BOOLEAN NOT NULL DEFAULT FALSE
+);
+
 -- Books table
 CREATE TABLE books (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+
+  -- Owner
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
 
   -- Book identification
   goodreads_id TEXT,
@@ -52,14 +65,6 @@ CREATE TABLE books (
   year_published INTEGER,
   original_publication_year INTEGER,
   average_rating NUMERIC(3, 2)
-);
-
--- Users table
-CREATE TABLE users (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  username TEXT NOT NULL UNIQUE
 );
 
 -- Passkey credentials table
@@ -96,15 +101,29 @@ CREATE TABLE recovery_codes (
   used_at TIMESTAMPTZ
 );
 
+-- Invitation tokens table for user invitations
+CREATE TABLE invitation_tokens (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  created_by UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  token TEXT NOT NULL UNIQUE,
+  expires_at TIMESTAMPTZ NOT NULL,
+  used BOOLEAN NOT NULL DEFAULT FALSE,
+  used_at TIMESTAMPTZ,
+  used_by UUID REFERENCES users(id) ON DELETE SET NULL
+);
+
 -- Create indexes for better query performance
 CREATE INDEX idx_books_status ON books(status);
 CREATE INDEX idx_books_category ON books(category);
 CREATE INDEX idx_books_next_up_order ON books(next_up_order) WHERE next_up_order IS NOT NULL;
+CREATE INDEX idx_books_user_id ON books(user_id);
 CREATE INDEX idx_passkey_credentials_user_id ON passkey_credentials(user_id);
 CREATE INDEX idx_setup_tokens_token ON setup_tokens(token);
 CREATE INDEX idx_setup_tokens_user_id ON setup_tokens(user_id);
 CREATE INDEX idx_recovery_codes_code ON recovery_codes(code);
 CREATE INDEX idx_recovery_codes_user_id ON recovery_codes(user_id);
+CREATE INDEX idx_invitation_tokens_token ON invitation_tokens(token);
 
 -- Function to automatically update updated_at timestamp
 CREATE OR REPLACE FUNCTION update_updated_at_column()

@@ -187,25 +187,25 @@ export interface AuthResponse {
 }
 
 export const authAPI = {
-  // Check if a user exists
-  checkStatus: async (): Promise<{ hasUser: boolean }> => {
+  // Check if a user exists and if registration requires invitation
+  checkStatus: async (): Promise<{ hasUser: boolean; requiresInvitation: boolean }> => {
     const response = await fetch(`${API_URL}/api/auth/status`);
     return response.json();
   },
 
   // Get registration options
-  getRegistrationOptions: async (username: string): Promise<PublicKeyCredentialCreationOptionsJSON> => {
+  getRegistrationOptions: async (username: string, invitationToken?: string): Promise<PublicKeyCredentialCreationOptionsJSON> => {
     return fetchAPI<PublicKeyCredentialCreationOptionsJSON>('/api/auth/register/options', {
       method: 'POST',
-      body: JSON.stringify({ username }),
+      body: JSON.stringify({ username, invitationToken }),
     });
   },
 
   // Verify registration
-  verifyRegistration: async (username: string, credential: RegistrationResponseJSON): Promise<AuthResponse> => {
+  verifyRegistration: async (username: string, credential: RegistrationResponseJSON, invitationToken?: string): Promise<AuthResponse> => {
     return fetchAPI<AuthResponse>('/api/auth/register/verify', {
       method: 'POST',
-      body: JSON.stringify({ username, credential }),
+      body: JSON.stringify({ username, credential, invitationToken }),
     });
   },
 
@@ -315,6 +315,22 @@ export const authAPI = {
     if (!response.ok) {
       const error = await response.json().catch(() => ({ error: 'Request failed' }));
       throw new Error(error.error || `Request failed with status ${response.status}`);
+    }
+    return response.json();
+  },
+
+  // Generate invitation link
+  generateInvitation: async (): Promise<{ token: string; expiresAt: string; inviteUrl: string }> => {
+    return fetchAPI<{ token: string; expiresAt: string; inviteUrl: string }>('/api/auth/invitation/generate', {
+      method: 'POST',
+    });
+  },
+
+  // Validate invitation token
+  validateInvitation: async (token: string): Promise<{ valid: boolean; expiresAt?: string }> => {
+    const response = await fetch(`${API_URL}/api/auth/invitation/validate/${token}`);
+    if (!response.ok) {
+      return { valid: false };
     }
     return response.json();
   },

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { startRegistration, startAuthentication } from '@simplewebauthn/browser';
 import { authAPI } from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
@@ -7,6 +7,9 @@ import { useAuth } from '../contexts/AuthContext';
 export function Auth() {
   const [username, setUsername] = useState('');
   const [hasUser, setHasUser] = useState(false);
+  const [requiresInvitation, setRequiresInvitation] = useState(false);
+  const [invitationToken, setInvitationToken] = useState<string | null>(null);
+  const [invitationValid, setInvitationValid] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [checkingStatus, setCheckingStatus] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -15,13 +18,24 @@ export function Auth() {
   const [recoveryCode, setRecoveryCode] = useState('');
   const { login } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
 
   useEffect(() => {
-    // Check if a user already exists
+    // Check if a user already exists and if invitation is required
     const checkUserStatus = async () => {
       try {
         const status = await authAPI.checkStatus();
         setHasUser(status.hasUser);
+        setRequiresInvitation(status.requiresInvitation);
+
+        // Check for invitation token in URL
+        const inviteParam = searchParams.get('invite');
+        if (inviteParam && status.requiresInvitation) {
+          setInvitationToken(inviteParam);
+          // Validate the invitation token
+          const validation = await authAPI.validateInvitation(inviteParam);
+          setInvitationValid(validation.valid);
+        }
       } catch (err) {
         console.error('Failed to check user status:', err);
       } finally {
@@ -30,7 +44,7 @@ export function Auth() {
     };
 
     checkUserStatus();
-  }, []);
+  }, [searchParams]);
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -44,14 +58,14 @@ export function Auth() {
         return;
       }
 
-      // Get registration options from server
-      const options = await authAPI.getRegistrationOptions(username);
+      // Get registration options from server (pass invitation token if available)
+      const options = await authAPI.getRegistrationOptions(username, invitationToken || undefined);
 
       // Start WebAuthn registration
       const credential = await startRegistration({ optionsJSON: options });
 
-      // Verify registration with server
-      const response = await authAPI.verifyRegistration(username, credential);
+      // Verify registration with server (pass invitation token if available)
+      const response = await authAPI.verifyRegistration(username, credential, invitationToken || undefined);
 
       // Store auth token
       login(response.token, response.user);
@@ -194,6 +208,9 @@ export function Auth() {
     );
   }
 
+  // Determine what to show
+  const showRegistration = !hasUser || (requiresInvitation && invitationValid);
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-warm-cream py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md w-full space-y-8">
@@ -202,11 +219,23 @@ export function Auth() {
             Books Tracker
           </h2>
           <p className="mt-2 text-center text-sm text-terracotta font-medium">
-            {hasUser ? 'Sign in with your passkey' : 'Create your account with a passkey'}
+            {showRegistration && invitationValid
+              ? "You've been invited! Create your account"
+              : hasUser
+                ? 'Sign in with your passkey'
+                : 'Create your account with a passkey'}
           </p>
         </div>
 
-        <form className="mt-8 space-y-6" onSubmit={hasUser ? handleLogin : handleRegister}>
+        {invitationValid && (
+          <div className="bg-forest-green/10 border-2 border-forest-green rounded-2xl p-4">
+            <p className="text-sm text-forest-green font-medium text-center">
+              You have a valid invitation. Choose a username to create your account.
+            </p>
+          </div>
+        )}
+
+        <form className="mt-8 space-y-6" onSubmit={showRegistration && !hasUser || invitationValid ? handleRegister : handleLogin}>
           <div className="rounded-2xl shadow-sm space-y-3">
             <div>
               <label htmlFor="username" className="sr-only">
@@ -226,7 +255,7 @@ export function Auth() {
               />
             </div>
 
-            {hasUser && useRecoveryCode && (
+            {hasUser && !invitationValid && useRecoveryCode && (
               <div>
                 <label htmlFor="recoveryCode" className="sr-only">
                   Recovery Code
@@ -268,17 +297,17 @@ export function Auth() {
                 </span>
               ) : (
                 <>
-                  {hasUser
-                    ? useRecoveryCode
+                  {showRegistration && (!hasUser || invitationValid)
+                    ? 'Create Account with Passkey'
+                    : useRecoveryCode
                       ? 'Sign in with Recovery Code'
-                      : 'Sign in with Passkey'
-                    : 'Create Account with Passkey'}
+                      : 'Sign in with Passkey'}
                 </>
               )}
             </button>
           </div>
 
-          {hasUser && (
+          {hasUser && !invitationValid && (
             <div className="text-sm text-center">
               <button
                 type="button"
@@ -296,11 +325,11 @@ export function Auth() {
 
           <div className="text-sm text-center text-charcoal/70">
             <p>
-              {hasUser
-                ? useRecoveryCode
+              {showRegistration && (!hasUser || invitationValid)
+                ? 'Your passkey will be stored securely on this device'
+                : useRecoveryCode
                   ? 'Enter one of your recovery codes'
-                  : 'Use your device\'s biometric authentication or security key'
-                : 'Your passkey will be stored securely on this device'}
+                  : 'Use your device\'s biometric authentication or security key'}
             </p>
           </div>
         </form>

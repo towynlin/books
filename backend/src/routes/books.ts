@@ -1,7 +1,7 @@
 import express from 'express';
 import { z } from 'zod';
 import { query, getClient } from '../db';
-import { authenticate } from '../middleware/auth';
+import { authenticate, AuthRequest } from '../middleware/auth';
 import { getBookCoverUrl } from '../utils/bookCovers';
 
 const router = express.Router();
@@ -32,13 +32,14 @@ const createBookSchema = z.object({
 const updateBookSchema = createBookSchema.partial();
 
 // GET /api/books - List all books with optional filters
-router.get('/', async (req, res) => {
+router.get('/', async (req: AuthRequest, res) => {
   try {
+    const userId = req.user!.userId;
     const { status, category, nextUp } = req.query;
 
-    const conditions: string[] = [];
-    const params: any[] = [];
-    let paramIndex = 1;
+    const conditions: string[] = [`user_id = $1`];
+    const params: any[] = [userId];
+    let paramIndex = 2;
 
     if (status) {
       conditions.push(`status = $${paramIndex++}`);
@@ -54,7 +55,7 @@ router.get('/', async (req, res) => {
       conditions.push('next_up_order IS NOT NULL');
     }
 
-    const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+    const whereClause = `WHERE ${conditions.join(' AND ')}`;
     const sql = `
       SELECT * FROM books
       ${whereClause}
@@ -70,9 +71,10 @@ router.get('/', async (req, res) => {
 });
 
 // GET /api/books/:id - Get single book
-router.get('/:id', async (req, res) => {
+router.get('/:id', async (req: AuthRequest, res) => {
   try {
-    const result = await query('SELECT * FROM books WHERE id = $1', [req.params.id]);
+    const userId = req.user!.userId;
+    const result = await query('SELECT * FROM books WHERE id = $1 AND user_id = $2', [req.params.id, userId]);
 
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Book not found' });
@@ -86,17 +88,19 @@ router.get('/:id', async (req, res) => {
 });
 
 // POST /api/books - Create new book
-router.post('/', async (req, res) => {
+router.post('/', async (req: AuthRequest, res) => {
   try {
+    const userId = req.user!.userId;
     const data = createBookSchema.parse(req.body);
 
     const result = await query(
       `INSERT INTO books (
-        title, author, status, category, isbn, isbn13, cover_url,
+        user_id, title, author, status, category, isbn, isbn13, cover_url,
         date_started, date_finished, my_rating, notes, next_up_order
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
       RETURNING *`,
       [
+        userId,
         data.title,
         data.author,
         data.status,
@@ -123,8 +127,9 @@ router.post('/', async (req, res) => {
 });
 
 // PATCH /api/books/:id - Update book
-router.patch('/:id', async (req, res) => {
+router.patch('/:id', async (req: AuthRequest, res) => {
   try {
+    const userId = req.user!.userId;
     const data = updateBookSchema.parse(req.body);
 
     const setClauses: string[] = [];
@@ -185,11 +190,12 @@ router.patch('/:id', async (req, res) => {
     }
 
     params.push(req.params.id);
+    params.push(userId);
 
     const sql = `
       UPDATE books
       SET ${setClauses.join(', ')}
-      WHERE id = $${paramIndex}
+      WHERE id = $${paramIndex} AND user_id = $${paramIndex + 1}
       RETURNING *
     `;
 
@@ -210,9 +216,10 @@ router.patch('/:id', async (req, res) => {
 });
 
 // DELETE /api/books/:id - Delete book
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', async (req: AuthRequest, res) => {
   try {
-    const result = await query('DELETE FROM books WHERE id = $1', [req.params.id]);
+    const userId = req.user!.userId;
+    const result = await query('DELETE FROM books WHERE id = $1 AND user_id = $2', [req.params.id, userId]);
 
     if (result.rowCount === 0) {
       return res.status(404).json({ error: 'Book not found' });
@@ -226,18 +233,21 @@ router.delete('/:id', async (req, res) => {
 });
 
 // POST /api/books/:id/add-to-next-up - Add book to next-up list
-router.post('/:id/add-to-next-up', async (req, res) => {
+router.post('/:id/add-to-next-up', async (req: AuthRequest, res) => {
   try {
-    // Get the current max next_up_order
+    const userId = req.user!.userId;
+
+    // Get the current max next_up_order for this user's books
     const maxOrderResult = await query(
-      'SELECT COALESCE(MAX(next_up_order), -1) as max_order FROM books WHERE next_up_order IS NOT NULL'
+      'SELECT COALESCE(MAX(next_up_order), -1) as max_order FROM books WHERE next_up_order IS NOT NULL AND user_id = $1',
+      [userId]
     );
     const nextOrder = maxOrderResult.rows[0].max_order + 1;
 
-    // Update the book with the new order
+    // Update the book with the new order (only if it belongs to this user)
     const result = await query(
-      'UPDATE books SET next_up_order = $1 WHERE id = $2 RETURNING *',
-      [nextOrder, req.params.id]
+      'UPDATE books SET next_up_order = $1 WHERE id = $2 AND user_id = $3 RETURNING *',
+      [nextOrder, req.params.id, userId]
     );
 
     if (result.rows.length === 0) {
@@ -252,12 +262,14 @@ router.post('/:id/add-to-next-up', async (req, res) => {
 });
 
 // POST /api/books/:id/remove-from-next-up - Remove book from next-up list
-router.post('/:id/remove-from-next-up', async (req, res) => {
+router.post('/:id/remove-from-next-up', async (req: AuthRequest, res) => {
   try {
-    // Get the book's current order
+    const userId = req.user!.userId;
+
+    // Get the book's current order (only if it belongs to this user)
     const bookResult = await query(
-      'SELECT next_up_order FROM books WHERE id = $1',
-      [req.params.id]
+      'SELECT next_up_order FROM books WHERE id = $1 AND user_id = $2',
+      [req.params.id, userId]
     );
 
     if (bookResult.rows.length === 0) {
@@ -273,22 +285,22 @@ router.post('/:id/remove-from-next-up', async (req, res) => {
 
       // Remove from next-up list
       await client.query(
-        'UPDATE books SET next_up_order = NULL WHERE id = $1',
-        [req.params.id]
+        'UPDATE books SET next_up_order = NULL WHERE id = $1 AND user_id = $2',
+        [req.params.id, userId]
       );
 
-      // Reorder remaining books (decrement orders greater than the removed one)
+      // Reorder remaining books for this user (decrement orders greater than the removed one)
       if (removedOrder !== null) {
         await client.query(
-          'UPDATE books SET next_up_order = next_up_order - 1 WHERE next_up_order > $1',
-          [removedOrder]
+          'UPDATE books SET next_up_order = next_up_order - 1 WHERE next_up_order > $1 AND user_id = $2',
+          [removedOrder, userId]
         );
       }
 
       await client.query('COMMIT');
 
       // Fetch and return updated book
-      const result = await query('SELECT * FROM books WHERE id = $1', [req.params.id]);
+      const result = await query('SELECT * FROM books WHERE id = $1 AND user_id = $2', [req.params.id, userId]);
       res.json(result.rows[0]);
     } catch (error) {
       await client.query('ROLLBACK');
@@ -303,13 +315,17 @@ router.post('/:id/remove-from-next-up', async (req, res) => {
 });
 
 // POST /api/books/populate-covers - Populate cover URLs for books missing them
-router.post('/populate-covers', async (req, res) => {
+router.post('/populate-covers', async (req: AuthRequest, res) => {
   try {
-    // Find books with ISBN but no cover URL
+    const userId = req.user!.userId;
+
+    // Find books with ISBN but no cover URL for this user
     const booksResult = await query(
       `SELECT id, isbn, isbn13 FROM books
        WHERE cover_url IS NULL
-       AND (isbn IS NOT NULL OR isbn13 IS NOT NULL)`
+       AND (isbn IS NOT NULL OR isbn13 IS NOT NULL)
+       AND user_id = $1`,
+      [userId]
     );
 
     const updated: string[] = [];
@@ -318,8 +334,8 @@ router.post('/populate-covers', async (req, res) => {
       const coverUrl = getBookCoverUrl(book.isbn13, book.isbn);
       if (coverUrl) {
         await query(
-          'UPDATE books SET cover_url = $1 WHERE id = $2',
-          [coverUrl, book.id]
+          'UPDATE books SET cover_url = $1 WHERE id = $2 AND user_id = $3',
+          [coverUrl, book.id, userId]
         );
         updated.push(book.id);
       }
@@ -337,12 +353,24 @@ router.post('/populate-covers', async (req, res) => {
 });
 
 // POST /api/books/reorder-next-up - Reorder next-up lists
-router.post('/reorder-next-up', async (req, res) => {
+router.post('/reorder-next-up', async (req: AuthRequest, res) => {
   try {
+    const userId = req.user!.userId;
     const { bookIds } = req.body as { bookIds: string[] };
 
     if (!Array.isArray(bookIds)) {
       return res.status(400).json({ error: 'bookIds must be an array' });
+    }
+
+    // Validate that all bookIds belong to this user
+    if (bookIds.length > 0) {
+      const validationResult = await query(
+        `SELECT COUNT(*) FROM books WHERE id = ANY($1) AND user_id = $2`,
+        [bookIds, userId]
+      );
+      if (parseInt(validationResult.rows[0].count) !== bookIds.length) {
+        return res.status(403).json({ error: 'Some books do not belong to this user' });
+      }
     }
 
     // Update all books in transaction
@@ -352,8 +380,8 @@ router.post('/reorder-next-up', async (req, res) => {
 
       for (let i = 0; i < bookIds.length; i++) {
         await client.query(
-          'UPDATE books SET next_up_order = $1 WHERE id = $2',
-          [i, bookIds[i]]
+          'UPDATE books SET next_up_order = $1 WHERE id = $2 AND user_id = $3',
+          [i, bookIds[i], userId]
         );
       }
 

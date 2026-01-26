@@ -2,7 +2,7 @@ import express from 'express';
 import multer from 'multer';
 import { parse } from 'csv-parse';
 import { query } from '../db';
-import { authenticate } from '../middleware/auth';
+import { authenticate, AuthRequest } from '../middleware/auth';
 import { getBookCoverUrl } from '../utils/bookCovers';
 
 const router = express.Router();
@@ -100,8 +100,10 @@ function parseFloatOrNull(value: string): number | null {
 }
 
 // POST /api/import/goodreads - Import Goodreads CSV
-router.post('/goodreads', upload.single('file'), async (req, res) => {
+router.post('/goodreads', upload.single('file'), async (req: AuthRequest, res) => {
   try {
+    const userId = req.user!.userId;
+
     if (!req.file) {
       return res.status(400).json({ error: 'No file uploaded' });
     }
@@ -133,12 +135,13 @@ router.post('/goodreads', upload.single('file'), async (req, res) => {
 
         const result = await query(
           `INSERT INTO books (
-            goodreads_id, title, author, isbn, isbn13, cover_url, status, category,
+            user_id, goodreads_id, title, author, isbn, isbn13, cover_url, status, category,
             date_started, date_finished, my_rating, notes, next_up_order,
             publisher, binding, pages, year_published, original_publication_year, average_rating
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
           RETURNING id, title, author`,
           [
+            userId,
             row['Book Id'] || null,
             row['Title'],
             row['Author'],

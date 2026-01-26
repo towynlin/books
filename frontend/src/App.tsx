@@ -7,6 +7,7 @@ import { Import } from './pages/Import';
 import { Auth } from './pages/Auth';
 import { Passkeys } from './pages/Passkeys';
 import { Setup } from './pages/Setup';
+import { Invitations } from './pages/Invitations';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -50,6 +51,12 @@ function Navigation() {
                 className="text-charcoal/80 hover:text-terracotta transition-colors"
               >
                 Passkeys
+              </Link>
+              <Link
+                to="/invitations"
+                className="text-charcoal/80 hover:text-terracotta transition-colors"
+              >
+                Invitations
               </Link>
             </div>
           </div>
@@ -99,6 +106,14 @@ function AppRoutes() {
           element={
             <ProtectedRoute>
               <Passkeys />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/invitations"
+          element={
+            <ProtectedRoute>
+              <Invitations />
             </ProtectedRoute>
           }
         />
