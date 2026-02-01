@@ -1,12 +1,19 @@
 import { useState, useRef, useEffect } from 'react';
-import { Book } from '../types/book';
+import { Book, BookStatus } from '../types/book';
 import { useAddToNextUp, useRemoveFromNextUp, useDeleteBook, useUpdateBook } from '../hooks/useBooks';
 import { getBookCoverUrl } from '../lib/bookCovers';
+import { StatusChangeModal } from './StatusChangeModal';
 
 interface BookCardProps {
   book: Book;
   onClick?: () => void;
 }
+
+const statusLabels: Record<BookStatus, string> = {
+  want_to_read: 'Want to Read',
+  reading: 'Currently Reading',
+  read: 'Read',
+};
 
 export function BookCard({ book, onClick }: BookCardProps) {
   const addToNextUp = useAddToNextUp();
@@ -14,6 +21,8 @@ export function BookCard({ book, onClick }: BookCardProps) {
   const deleteBook = useDeleteBook();
   const updateBook = useUpdateBook();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [statusModalOpen, setStatusModalOpen] = useState(false);
+  const [targetStatus, setTargetStatus] = useState<BookStatus | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
   // Close menu when clicking outside
@@ -63,6 +72,24 @@ export function BookCard({ book, onClick }: BookCardProps) {
     updateBook.mutate({ id: book.id, data: { category } });
   };
 
+  const handleStatusChange = (e: React.MouseEvent, status: BookStatus) => {
+    e.stopPropagation();
+    setMenuOpen(false);
+    setTargetStatus(status);
+    setStatusModalOpen(true);
+  };
+
+  const handleCloseStatusModal = () => {
+    setStatusModalOpen(false);
+    setTargetStatus(null);
+  };
+
+  // Get available status transitions based on current status
+  const getAvailableStatusTransitions = (): BookStatus[] => {
+    const allStatuses: BookStatus[] = ['want_to_read', 'reading', 'read'];
+    return allStatuses.filter((s) => s !== book.status);
+  };
+
   const isInNextUp = book.nextUpOrder !== null && book.nextUpOrder !== undefined;
 
   // Use stored coverUrl, or fall back to generating from ISBN
@@ -85,7 +112,33 @@ export function BookCard({ book, onClick }: BookCardProps) {
           </svg>
         </button>
         {menuOpen && (
-          <div className="absolute right-0 mt-1 w-36 bg-white rounded-xl shadow-lg border-2 border-soft-peach py-1 z-10">
+          <div className="absolute right-0 mt-1 w-44 bg-white rounded-xl shadow-lg border-2 border-soft-peach py-1 z-10">
+            {/* Status change options */}
+            <div className="px-3 py-1.5 text-xs font-semibold text-charcoal/50 uppercase tracking-wide">
+              Move to
+            </div>
+            {getAvailableStatusTransitions().map((status) => (
+              <button
+                key={status}
+                onClick={(e) => handleStatusChange(e, status)}
+                className="w-full px-4 py-2 text-left text-sm text-charcoal hover:bg-soft-peach/30 flex items-center gap-2"
+              >
+                {status === 'read' && (
+                  <span className="text-terracotta">★</span>
+                )}
+                {status === 'reading' && (
+                  <span className="text-forest-green">📖</span>
+                )}
+                {status === 'want_to_read' && (
+                  <span className="text-charcoal/60">📚</span>
+                )}
+                {statusLabels[status]}
+              </button>
+            ))}
+
+            <div className="my-1 border-t border-soft-peach" />
+
+            {/* Category options */}
             {book.category !== 'fiction' && (
               <button
                 onClick={(e) => handleSetCategory(e, 'fiction')}
@@ -102,6 +155,9 @@ export function BookCard({ book, onClick }: BookCardProps) {
                 Mark as Nonfiction
               </button>
             )}
+
+            <div className="my-1 border-t border-soft-peach" />
+
             <button
               onClick={handleDelete}
               className="w-full px-4 py-2 text-left text-sm text-terracotta hover:bg-soft-peach"
@@ -191,6 +247,16 @@ export function BookCard({ book, onClick }: BookCardProps) {
             </button>
           )}
         </div>
+      )}
+
+      {/* Status Change Modal */}
+      {targetStatus && (
+        <StatusChangeModal
+          book={book}
+          targetStatus={targetStatus}
+          isOpen={statusModalOpen}
+          onClose={handleCloseStatusModal}
+        />
       )}
     </div>
   );
