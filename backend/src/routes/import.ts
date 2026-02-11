@@ -34,7 +34,7 @@ interface GoodreadsRow {
   'Private Notes': string;
 }
 
-function parseISBN(isbn: string): string | null {
+export function parseISBN(isbn: string): string | null {
   if (!isbn) {
     return null;
   }
@@ -43,7 +43,7 @@ function parseISBN(isbn: string): string | null {
   return cleaned || null;
 }
 
-function parseDate(dateStr: string): Date | null {
+export function parseDate(dateStr: string): Date | null {
   if (!dateStr || dateStr.trim() === '') {
     return null;
   }
@@ -56,7 +56,7 @@ function parseDate(dateStr: string): Date | null {
   }
 }
 
-function mapStatus(exclusiveShelf: string): BookStatus {
+export function mapStatus(exclusiveShelf: string): BookStatus {
   switch (exclusiveShelf) {
     case 'read':
       return 'read';
@@ -69,7 +69,7 @@ function mapStatus(exclusiveShelf: string): BookStatus {
   }
 }
 
-function combineNotes(review: string, privateNotes: string): string | null {
+export function combineNotes(review: string, privateNotes: string): string | null {
   const parts: string[] = [];
 
   if (review && review.trim()) {
