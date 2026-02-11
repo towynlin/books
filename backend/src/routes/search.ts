@@ -58,7 +58,7 @@ router.get('/', async (req, res) => {
       throw new Error(`Open Library API returned ${response.status}`);
     }
 
-    const data: OpenLibraryResponse = await response.json();
+    const data = await response.json() as OpenLibraryResponse;
 
     // Transform Open Library results to our format
     const results: SearchResult[] = data.docs.map((doc) => {

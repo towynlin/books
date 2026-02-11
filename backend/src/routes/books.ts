@@ -144,7 +144,7 @@ router.post('/', async (req: AuthRequest, res) => {
     res.status(201).json(result.rows[0]);
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return res.status(400).json({ error: 'Invalid input', details: error.errors });
+      return res.status(400).json({ error: 'Invalid input', details: error.issues });
     }
     console.error('Error creating book:', error);
     res.status(500).json({ error: 'Failed to create book' });
@@ -233,7 +233,7 @@ router.patch('/:id', async (req: AuthRequest, res) => {
     res.json(result.rows[0]);
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return res.status(400).json({ error: 'Invalid input', details: error.errors });
+      return res.status(400).json({ error: 'Invalid input', details: error.issues });
     }
     console.error('Error updating book:', error);
     res.status(500).json({ error: 'Failed to update book' });

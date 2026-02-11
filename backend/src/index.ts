@@ -8,7 +8,7 @@ import importRoutes from './routes/import';
 import authRoutes from './routes/auth';
 import searchRoutes from './routes/search';
 
-dotenv.config();
+dotenv.config({ quiet: true });
 
 const app = express();
 const port = parseInt(process.env.PORT || '3000', 10);
@@ -38,7 +38,7 @@ if (process.env.NODE_ENV === 'production') {
   app.use(express.static(path.join(__dirname, '../public')));
 
   // Serve index.html for all non-API routes (SPA routing)
-  app.get('*', (req, res, next) => {
+  app.get('{*splat}', (req, res, next) => {
     // Skip API routes
     if (req.path.startsWith('/api/') || req.path === '/health') {
       return next();

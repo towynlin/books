@@ -10,7 +10,7 @@ import {
 import type {
   RegistrationResponseJSON,
   AuthenticationResponseJSON,
-} from '@simplewebauthn/server/script/deps';
+} from '@simplewebauthn/server';
 import { query, getClient } from '../db';
 import { authenticate, AuthRequest } from '../middleware/auth';
 
@@ -164,7 +164,7 @@ router.post('/register/verify', async (req, res) => {
     }
 
     // In v10+, credentialID is a base64url string (not Uint8Array)
-    const { credentialID, credentialPublicKey, counter } = verification.registrationInfo;
+    const { id: credentialID, publicKey: credentialPublicKey, counter } = verification.registrationInfo.credential;
 
     // Get transports from the response
     const transports = credential.response.transports || [];
@@ -352,9 +352,9 @@ router.post('/login/verify', async (req, res) => {
       expectedChallenge,
       expectedOrigin: rpOrigin,
       expectedRPID: rpID,
-      authenticator: {
-        credentialID: dbCredential.credential_id,
-        credentialPublicKey: dbCredential.public_key,
+      credential: {
+        id: dbCredential.credential_id,
+        publicKey: dbCredential.public_key,
         counter: Number(dbCredential.counter),
       },
     });
@@ -615,7 +615,7 @@ router.post('/passkeys/add-verify', authenticate, async (req: AuthRequest, res) 
     }
 
     // In v10+, credentialID is a base64url string (not Uint8Array)
-    const { credentialID, credentialPublicKey, counter } = verification.registrationInfo;
+    const { id: credentialID, publicKey: credentialPublicKey, counter } = verification.registrationInfo.credential;
 
     // Get transports from the response
     const transports = credential.response.transports || [];
@@ -941,7 +941,7 @@ router.post('/setup-token/register-verify', async (req, res) => {
     }
 
     // In v10+, credentialID is a base64url string (not Uint8Array)
-    const { credentialID, credentialPublicKey, counter } = verification.registrationInfo;
+    const { id: credentialID, publicKey: credentialPublicKey, counter } = verification.registrationInfo.credential;
 
     // Add credential to database
     // credentialID is already a base64url string, store it directly
