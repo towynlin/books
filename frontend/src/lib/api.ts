@@ -50,11 +50,15 @@ export const booksAPI = {
     status?: BookStatus;
     category?: BookCategory;
     nextUp?: boolean;
+    sort?: string;
+    sortDir?: 'asc' | 'desc';
   }): Promise<Book[]> => {
     const params = new URLSearchParams();
     if (filters?.status) params.append('status', filters.status);
     if (filters?.category) params.append('category', filters.category);
     if (filters?.nextUp) params.append('nextUp', 'true');
+    if (filters?.sort) params.append('sort', filters.sort);
+    if (filters?.sortDir) params.append('sortDir', filters.sortDir);
 
     const query = params.toString();
     return fetchAPI<Book[]>(`/api/books${query ? `?${query}` : ''}`);

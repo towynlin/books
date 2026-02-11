@@ -35,7 +35,7 @@ const updateBookSchema = createBookSchema.partial();
 router.get('/', async (req: AuthRequest, res) => {
   try {
     const userId = req.user!.userId;
-    const { status, category, nextUp } = req.query;
+    const { status, category, nextUp, sort } = req.query;
 
     const conditions: string[] = [`user_id = $1`];
     const params: any[] = [userId];
@@ -56,10 +56,35 @@ router.get('/', async (req: AuthRequest, res) => {
     }
 
     const whereClause = `WHERE ${conditions.join(' AND ')}`;
+
+    const dir = req.query.sortDir === 'asc' ? 'ASC' : req.query.sortDir === 'desc' ? 'DESC' : null;
+
+    let orderBy: string;
+    switch (sort) {
+      case 'author':
+        orderBy = `ORDER BY author ${dir || 'ASC'}, title ASC`;
+        break;
+      case 'title':
+        orderBy = `ORDER BY title ${dir || 'ASC'}, author ASC`;
+        break;
+      case 'date_added':
+        orderBy = `ORDER BY date_added ${dir || 'DESC'}`;
+        break;
+      case 'date_finished': {
+        const d = dir || 'DESC';
+        const nulls = d === 'DESC' ? 'NULLS LAST' : 'NULLS FIRST';
+        orderBy = `ORDER BY date_finished ${d} ${nulls}, date_added DESC`;
+        break;
+      }
+      default:
+        orderBy = 'ORDER BY next_up_order ASC NULLS LAST, date_added DESC';
+        break;
+    }
+
     const sql = `
       SELECT * FROM books
       ${whereClause}
-      ORDER BY next_up_order ASC NULLS LAST, date_added DESC
+      ${orderBy}
     `;
 
     const result = await query(sql, params);

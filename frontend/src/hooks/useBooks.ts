@@ -6,6 +6,8 @@ export function useBooks(filters?: {
   status?: BookStatus;
   category?: BookCategory;
   nextUp?: boolean;
+  sort?: string;
+  sortDir?: 'asc' | 'desc';
 }) {
   return useQuery({
     queryKey: ['books', filters],
