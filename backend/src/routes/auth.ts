@@ -1,6 +1,7 @@
 import express from 'express';
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
+import bcrypt from 'bcrypt';
 import {
   generateRegistrationOptions,
   verifyRegistrationResponse,
@@ -207,7 +208,7 @@ router.post('/register/verify', async (req, res) => {
         );
       }
 
-      // Generate and store 10 recovery codes
+      // Generate and store 10 recovery codes (hashed)
       for (let i = 0; i < 10; i++) {
         const code = [
           crypto.randomBytes(2).toString('hex').toUpperCase(),
@@ -217,9 +218,10 @@ router.post('/register/verify', async (req, res) => {
         ].join('-');
         recoveryCodes.push(code);
 
+        const hashedCode = await bcrypt.hash(code, 10);
         await client.query(
           'INSERT INTO recovery_codes (user_id, code) VALUES ($1, $2)',
-          [user.id, code]
+          [user.id, hashedCode]
         );
       }
 
@@ -415,26 +417,29 @@ router.post('/login/recovery', async (req, res) => {
 
     const user = userResult.rows[0];
 
-    // Find recovery code — use same generic error for all failure cases
-    const codeResult = await query(
-      'SELECT id, used FROM recovery_codes WHERE user_id = $1 AND code = $2',
-      [user.id, recoveryCode.trim().toUpperCase()]
+    // Find matching recovery code by comparing against all unused hashes
+    const codesResult = await query(
+      'SELECT id, code, used FROM recovery_codes WHERE user_id = $1 AND used = FALSE',
+      [user.id]
     );
 
-    if (codeResult.rows.length === 0) {
-      return res.status(400).json({ error: 'Invalid username or recovery code' });
+    const normalizedInput = recoveryCode.trim().toUpperCase();
+    let matchedCodeId: string | null = null;
+    for (const row of codesResult.rows) {
+      if (await bcrypt.compare(normalizedInput, row.code)) {
+        matchedCodeId = row.id;
+        break;
+      }
     }
 
-    const code = codeResult.rows[0];
-
-    if (code.used) {
+    if (!matchedCodeId) {
       return res.status(400).json({ error: 'Invalid username or recovery code' });
     }
 
     // Mark recovery code as used
     await query(
       'UPDATE recovery_codes SET used = TRUE, used_at = NOW() WHERE id = $1',
-      [code.id]
+      [matchedCodeId]
     );
 
     // Generate JWT
