@@ -1,5 +1,6 @@
 import express from 'express';
 import cors from 'cors';
+import helmet from 'helmet';
 import dotenv from 'dotenv';
 import path from 'path';
 import { endPool } from './db';
@@ -13,7 +14,10 @@ dotenv.config({ quiet: true });
 const app = express();
 const port = parseInt(process.env.PORT || '3000', 10);
 
-// Middleware
+// Security headers
+app.use(helmet());
+
+// CORS
 const corsOrigin = process.env.CORS_ORIGIN;
 if (!corsOrigin && process.env.NODE_ENV === 'production') {
   throw new Error('CORS_ORIGIN environment variable is required in production');
