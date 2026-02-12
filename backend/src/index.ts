@@ -14,11 +14,15 @@ const app = express();
 const port = parseInt(process.env.PORT || '3000', 10);
 
 // Middleware
+const corsOrigin = process.env.CORS_ORIGIN;
+if (!corsOrigin && process.env.NODE_ENV === 'production') {
+  throw new Error('CORS_ORIGIN environment variable is required in production');
+}
 app.use(cors({
-  origin: process.env.CORS_ORIGIN || true, // Allow specific origin or all origins
-  credentials: true, // Allow credentials
+  origin: corsOrigin || true,
+  credentials: true,
 }));
-app.use(express.json());
+app.use(express.json({ limit: '100kb' }));
 app.use(express.urlencoded({ extended: true }));
 
 // Routes

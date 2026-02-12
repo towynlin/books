@@ -46,7 +46,10 @@ const router = express.Router();
 const rpName = process.env.RP_NAME || 'Books Tracker';
 const rpID = process.env.RP_ID || 'localhost';
 const rpOrigin = process.env.RP_ORIGIN || 'http://localhost:5173';
-const jwtSecret = process.env.JWT_SECRET || 'default-secret-key';
+const jwtSecret = process.env.JWT_SECRET;
+if (!jwtSecret) {
+  throw new Error('JWT_SECRET environment variable is required');
+}
 
 // Temporary storage for challenges (in production, use Redis or similar)
 const challenges = new Map<string, string>();

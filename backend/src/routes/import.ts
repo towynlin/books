@@ -6,7 +6,10 @@ import { authenticate, AuthRequest } from '../middleware/auth';
 import { getBookCoverUrl } from '../utils/bookCovers';
 
 const router = express.Router();
-const upload = multer({ storage: multer.memoryStorage() });
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5 MB max
+});
 
 // Apply authentication to all routes
 router.use(authenticate);
@@ -186,10 +189,7 @@ router.post('/goodreads', upload.single('file'), async (req: AuthRequest, res) =
     });
   } catch (error) {
     console.error('Error importing Goodreads data:', error);
-    res.status(500).json({
-      error: 'Failed to import Goodreads data',
-      details: error instanceof Error ? error.message : 'Unknown error'
-    });
+    res.status(500).json({ error: 'Failed to import Goodreads data' });
   }
 });
 
