@@ -52,8 +52,34 @@ if (!jwtSecret) {
   throw new Error('JWT_SECRET environment variable is required');
 }
 
-// Temporary storage for challenges (in production, use Redis or similar)
-const challenges = new Map<string, string>();
+// Temporary storage for challenges with TTL (5 minutes)
+const CHALLENGE_TTL_MS = 5 * 60 * 1000;
+const challenges = new Map<string, { challenge: string; createdAt: number }>();
+
+// Clean up expired challenges every 60 seconds
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, value] of challenges) {
+    if (now - value.createdAt > CHALLENGE_TTL_MS) {
+      challenges.delete(key);
+    }
+  }
+}, 60 * 1000);
+
+// Helper to set/get challenges with TTL
+function setChallenge(key: string, challenge: string): void {
+  challenges.set(key, { challenge, createdAt: Date.now() });
+}
+
+function getChallenge(key: string): string | undefined {
+  const entry = challenges.get(key);
+  if (!entry) return undefined;
+  if (Date.now() - entry.createdAt > CHALLENGE_TTL_MS) {
+    challenges.delete(key);
+    return undefined;
+  }
+  return entry.challenge;
+}
 
 // POST /api/auth/register/options - Get registration options
 router.post('/register/options', async (req, res) => {
@@ -107,7 +133,7 @@ router.post('/register/options', async (req, res) => {
 
     // Store challenge temporarily (include invitation token in key if present)
     const challengeKey = invitationToken ? `${username}:${invitationToken}` : username;
-    challenges.set(challengeKey, options.challenge);
+    setChallenge(challengeKey, options.challenge);
 
     res.json(options);
   } catch (error) {
@@ -150,7 +176,7 @@ router.post('/register/verify', async (req, res) => {
 
     // Get stored challenge (check both with and without invitation token)
     const challengeKey = invitationToken ? `${username}:${invitationToken}` : username;
-    const expectedChallenge = challenges.get(challengeKey);
+    const expectedChallenge = getChallenge(challengeKey);
     if (!expectedChallenge) {
       return res.status(400).json({ error: 'No registration in progress' });
     }
@@ -297,7 +323,7 @@ router.post('/login/options', async (req, res) => {
     });
 
     // Store challenge (will fail at verify step for non-existent users)
-    challenges.set(username, options.challenge);
+    setChallenge(username, options.challenge);
 
     res.json(options);
   } catch (error) {
@@ -318,8 +344,8 @@ router.post('/login/verify', async (req, res) => {
       return res.status(400).json({ error: 'Username and credential are required' });
     }
 
-    // Get stored challenge
-    const expectedChallenge = challenges.get(username);
+    // Get stored challenge (returns undefined if expired)
+    const expectedChallenge = getChallenge(username);
     if (!expectedChallenge) {
       return res.status(400).json({ error: 'No login in progress' });
     }
@@ -576,7 +602,7 @@ router.post('/passkeys/add-options', authenticate, async (req: AuthRequest, res)
     });
 
     // Store challenge with user ID instead of username for add operations
-    challenges.set(`add-${userId}`, options.challenge);
+    setChallenge(`add-${userId}`, options.challenge);
 
     res.json(options);
   } catch (error) {
@@ -602,8 +628,8 @@ router.post('/passkeys/add-verify', authenticate, async (req: AuthRequest, res) 
       return res.status(400).json({ error: 'Credential is required' });
     }
 
-    // Get stored challenge
-    const expectedChallenge = challenges.get(`add-${userId}`);
+    // Get stored challenge (returns undefined if expired)
+    const expectedChallenge = getChallenge(`add-${userId}`);
     if (!expectedChallenge) {
       return res.status(400).json({ error: 'No add passkey operation in progress' });
     }
@@ -816,7 +842,7 @@ router.post('/setup-token/register-options', async (req, res) => {
     });
 
     // Store challenge with token
-    challenges.set(`setup-${token}`, options.challenge);
+    setChallenge(`setup-${token}`, options.challenge);
 
     res.json(options);
   } catch (error) {
@@ -928,8 +954,8 @@ router.post('/setup-token/register-verify', async (req, res) => {
       return res.status(400).json({ error: 'This setup token has expired' });
     }
 
-    // Get stored challenge
-    const expectedChallenge = challenges.get(`setup-${token}`);
+    // Get stored challenge (returns undefined if expired)
+    const expectedChallenge = getChallenge(`setup-${token}`);
     if (!expectedChallenge) {
       return res.status(400).json({ error: 'No registration in progress' });
     }
