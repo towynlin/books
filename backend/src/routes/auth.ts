@@ -271,32 +271,30 @@ router.post('/login/options', async (req, res) => {
       [username]
     );
 
-    if (userResult.rows.length === 0) {
-      return res.status(404).json({ error: 'User not found' });
+    const user = userResult.rows.length > 0 ? userResult.rows[0] : null;
+
+    let allowCredentials: { id: string; type: 'public-key'; transports: any[] }[] = [];
+    if (user) {
+      const credentialsResult = await query(
+        'SELECT credential_id, transports FROM passkey_credentials WHERE user_id = $1',
+        [user.id]
+      );
+      allowCredentials = credentialsResult.rows.map((cred: any) => ({
+        id: cred.credential_id,
+        type: 'public-key' as const,
+        transports: cred.transports || [],
+      }));
     }
 
-    const user = userResult.rows[0];
-
-    const credentialsResult = await query(
-      'SELECT credential_id, transports FROM passkey_credentials WHERE user_id = $1',
-      [user.id]
-    );
-
-    // Generate authentication options
-    // credential_id is stored as base64url, use it directly
+    // Generate authentication options even for non-existent users
+    // to prevent username enumeration via response differences
     const options = await generateAuthenticationOptions({
       rpID,
-      allowCredentials: credentialsResult.rows.length > 0
-        ? credentialsResult.rows.map((cred: any) => ({
-            id: cred.credential_id,
-            type: 'public-key' as const,
-            transports: cred.transports || [],
-          }))
-        : [],
+      allowCredentials,
       userVerification: 'preferred',
     });
 
-    // Store challenge
+    // Store challenge (will fail at verify step for non-existent users)
     challenges.set(username, options.challenge);
 
     res.json(options);
@@ -324,14 +322,14 @@ router.post('/login/verify', async (req, res) => {
       return res.status(400).json({ error: 'No login in progress' });
     }
 
-    // Find user and credential
+    // Find user and credential — use generic error to prevent enumeration
     const userResult = await query(
       'SELECT id, username FROM users WHERE username = $1',
       [username]
     );
 
     if (userResult.rows.length === 0) {
-      return res.status(404).json({ error: 'User not found' });
+      return res.status(400).json({ error: 'Authentication failed' });
     }
 
     const user = userResult.rows[0];
@@ -343,7 +341,7 @@ router.post('/login/verify', async (req, res) => {
     );
 
     if (credentialResult.rows.length === 0) {
-      return res.status(400).json({ error: 'Credential not found' });
+      return res.status(400).json({ error: 'Authentication failed' });
     }
 
     const dbCredential = credentialResult.rows[0];
@@ -405,32 +403,32 @@ router.post('/login/recovery', async (req, res) => {
       return res.status(400).json({ error: 'Username and recovery code are required' });
     }
 
-    // Find user
+    // Find user — use generic error to prevent username enumeration
     const userResult = await query(
       'SELECT id, username FROM users WHERE username = $1',
       [username]
     );
 
     if (userResult.rows.length === 0) {
-      return res.status(404).json({ error: 'User not found' });
+      return res.status(400).json({ error: 'Invalid username or recovery code' });
     }
 
     const user = userResult.rows[0];
 
-    // Find recovery code
+    // Find recovery code — use same generic error for all failure cases
     const codeResult = await query(
       'SELECT id, used FROM recovery_codes WHERE user_id = $1 AND code = $2',
       [user.id, recoveryCode.trim().toUpperCase()]
     );
 
     if (codeResult.rows.length === 0) {
-      return res.status(400).json({ error: 'Invalid recovery code' });
+      return res.status(400).json({ error: 'Invalid username or recovery code' });
     }
 
     const code = codeResult.rows[0];
 
     if (code.used) {
-      return res.status(400).json({ error: 'This recovery code has already been used' });
+      return res.status(400).json({ error: 'Invalid username or recovery code' });
     }
 
     // Mark recovery code as used
