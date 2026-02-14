@@ -1,6 +1,7 @@
 import express from 'express';
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
+import bcrypt from 'bcrypt';
 import {
   generateRegistrationOptions,
   verifyRegistrationResponse,
@@ -46,10 +47,39 @@ const router = express.Router();
 const rpName = process.env.RP_NAME || 'Books Tracker';
 const rpID = process.env.RP_ID || 'localhost';
 const rpOrigin = process.env.RP_ORIGIN || 'http://localhost:5173';
-const jwtSecret = process.env.JWT_SECRET || 'default-secret-key';
+const jwtSecret = process.env.JWT_SECRET;
+if (!jwtSecret) {
+  throw new Error('JWT_SECRET environment variable is required');
+}
 
-// Temporary storage for challenges (in production, use Redis or similar)
-const challenges = new Map<string, string>();
+// Temporary storage for challenges with TTL (5 minutes)
+const CHALLENGE_TTL_MS = 5 * 60 * 1000;
+const challenges = new Map<string, { challenge: string; createdAt: number }>();
+
+// Clean up expired challenges every 60 seconds
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, value] of challenges) {
+    if (now - value.createdAt > CHALLENGE_TTL_MS) {
+      challenges.delete(key);
+    }
+  }
+}, 60 * 1000);
+
+// Helper to set/get challenges with TTL
+function setChallenge(key: string, challenge: string): void {
+  challenges.set(key, { challenge, createdAt: Date.now() });
+}
+
+function getChallenge(key: string): string | undefined {
+  const entry = challenges.get(key);
+  if (!entry) return undefined;
+  if (Date.now() - entry.createdAt > CHALLENGE_TTL_MS) {
+    challenges.delete(key);
+    return undefined;
+  }
+  return entry.challenge;
+}
 
 // POST /api/auth/register/options - Get registration options
 router.post('/register/options', async (req, res) => {
@@ -103,7 +133,7 @@ router.post('/register/options', async (req, res) => {
 
     // Store challenge temporarily (include invitation token in key if present)
     const challengeKey = invitationToken ? `${username}:${invitationToken}` : username;
-    challenges.set(challengeKey, options.challenge);
+    setChallenge(challengeKey, options.challenge);
 
     res.json(options);
   } catch (error) {
@@ -146,7 +176,7 @@ router.post('/register/verify', async (req, res) => {
 
     // Get stored challenge (check both with and without invitation token)
     const challengeKey = invitationToken ? `${username}:${invitationToken}` : username;
-    const expectedChallenge = challenges.get(challengeKey);
+    const expectedChallenge = getChallenge(challengeKey);
     if (!expectedChallenge) {
       return res.status(400).json({ error: 'No registration in progress' });
     }
@@ -204,7 +234,7 @@ router.post('/register/verify', async (req, res) => {
         );
       }
 
-      // Generate and store 10 recovery codes
+      // Generate and store 10 recovery codes (hashed)
       for (let i = 0; i < 10; i++) {
         const code = [
           crypto.randomBytes(2).toString('hex').toUpperCase(),
@@ -214,9 +244,10 @@ router.post('/register/verify', async (req, res) => {
         ].join('-');
         recoveryCodes.push(code);
 
+        const hashedCode = await bcrypt.hash(code, 10);
         await client.query(
           'INSERT INTO recovery_codes (user_id, code) VALUES ($1, $2)',
-          [user.id, code]
+          [user.id, hashedCode]
         );
       }
 
@@ -268,33 +299,31 @@ router.post('/login/options', async (req, res) => {
       [username]
     );
 
-    if (userResult.rows.length === 0) {
-      return res.status(404).json({ error: 'User not found' });
+    const user = userResult.rows.length > 0 ? userResult.rows[0] : null;
+
+    let allowCredentials: { id: string; type: 'public-key'; transports: any[] }[] = [];
+    if (user) {
+      const credentialsResult = await query(
+        'SELECT credential_id, transports FROM passkey_credentials WHERE user_id = $1',
+        [user.id]
+      );
+      allowCredentials = credentialsResult.rows.map((cred: any) => ({
+        id: cred.credential_id,
+        type: 'public-key' as const,
+        transports: cred.transports || [],
+      }));
     }
 
-    const user = userResult.rows[0];
-
-    const credentialsResult = await query(
-      'SELECT credential_id, transports FROM passkey_credentials WHERE user_id = $1',
-      [user.id]
-    );
-
-    // Generate authentication options
-    // credential_id is stored as base64url, use it directly
+    // Generate authentication options even for non-existent users
+    // to prevent username enumeration via response differences
     const options = await generateAuthenticationOptions({
       rpID,
-      allowCredentials: credentialsResult.rows.length > 0
-        ? credentialsResult.rows.map((cred: any) => ({
-            id: cred.credential_id,
-            type: 'public-key' as const,
-            transports: cred.transports || [],
-          }))
-        : [],
+      allowCredentials,
       userVerification: 'preferred',
     });
 
-    // Store challenge
-    challenges.set(username, options.challenge);
+    // Store challenge (will fail at verify step for non-existent users)
+    setChallenge(username, options.challenge);
 
     res.json(options);
   } catch (error) {
@@ -315,20 +344,20 @@ router.post('/login/verify', async (req, res) => {
       return res.status(400).json({ error: 'Username and credential are required' });
     }
 
-    // Get stored challenge
-    const expectedChallenge = challenges.get(username);
+    // Get stored challenge (returns undefined if expired)
+    const expectedChallenge = getChallenge(username);
     if (!expectedChallenge) {
       return res.status(400).json({ error: 'No login in progress' });
     }
 
-    // Find user and credential
+    // Find user and credential — use generic error to prevent enumeration
     const userResult = await query(
       'SELECT id, username FROM users WHERE username = $1',
       [username]
     );
 
     if (userResult.rows.length === 0) {
-      return res.status(404).json({ error: 'User not found' });
+      return res.status(400).json({ error: 'Authentication failed' });
     }
 
     const user = userResult.rows[0];
@@ -340,7 +369,7 @@ router.post('/login/verify', async (req, res) => {
     );
 
     if (credentialResult.rows.length === 0) {
-      return res.status(400).json({ error: 'Credential not found' });
+      return res.status(400).json({ error: 'Authentication failed' });
     }
 
     const dbCredential = credentialResult.rows[0];
@@ -402,38 +431,41 @@ router.post('/login/recovery', async (req, res) => {
       return res.status(400).json({ error: 'Username and recovery code are required' });
     }
 
-    // Find user
+    // Find user — use generic error to prevent username enumeration
     const userResult = await query(
       'SELECT id, username FROM users WHERE username = $1',
       [username]
     );
 
     if (userResult.rows.length === 0) {
-      return res.status(404).json({ error: 'User not found' });
+      return res.status(400).json({ error: 'Invalid username or recovery code' });
     }
 
     const user = userResult.rows[0];
 
-    // Find recovery code
-    const codeResult = await query(
-      'SELECT id, used FROM recovery_codes WHERE user_id = $1 AND code = $2',
-      [user.id, recoveryCode.trim().toUpperCase()]
+    // Find matching recovery code by comparing against all unused hashes
+    const codesResult = await query(
+      'SELECT id, code, used FROM recovery_codes WHERE user_id = $1 AND used = FALSE',
+      [user.id]
     );
 
-    if (codeResult.rows.length === 0) {
-      return res.status(400).json({ error: 'Invalid recovery code' });
+    const normalizedInput = recoveryCode.trim().toUpperCase();
+    let matchedCodeId: string | null = null;
+    for (const row of codesResult.rows) {
+      if (await bcrypt.compare(normalizedInput, row.code)) {
+        matchedCodeId = row.id;
+        break;
+      }
     }
 
-    const code = codeResult.rows[0];
-
-    if (code.used) {
-      return res.status(400).json({ error: 'This recovery code has already been used' });
+    if (!matchedCodeId) {
+      return res.status(400).json({ error: 'Invalid username or recovery code' });
     }
 
     // Mark recovery code as used
     await query(
       'UPDATE recovery_codes SET used = TRUE, used_at = NOW() WHERE id = $1',
-      [code.id]
+      [matchedCodeId]
     );
 
     // Generate JWT
@@ -570,7 +602,7 @@ router.post('/passkeys/add-options', authenticate, async (req: AuthRequest, res)
     });
 
     // Store challenge with user ID instead of username for add operations
-    challenges.set(`add-${userId}`, options.challenge);
+    setChallenge(`add-${userId}`, options.challenge);
 
     res.json(options);
   } catch (error) {
@@ -596,8 +628,8 @@ router.post('/passkeys/add-verify', authenticate, async (req: AuthRequest, res) 
       return res.status(400).json({ error: 'Credential is required' });
     }
 
-    // Get stored challenge
-    const expectedChallenge = challenges.get(`add-${userId}`);
+    // Get stored challenge (returns undefined if expired)
+    const expectedChallenge = getChallenge(`add-${userId}`);
     if (!expectedChallenge) {
       return res.status(400).json({ error: 'No add passkey operation in progress' });
     }
@@ -810,7 +842,7 @@ router.post('/setup-token/register-options', async (req, res) => {
     });
 
     // Store challenge with token
-    challenges.set(`setup-${token}`, options.challenge);
+    setChallenge(`setup-${token}`, options.challenge);
 
     res.json(options);
   } catch (error) {
@@ -922,8 +954,8 @@ router.post('/setup-token/register-verify', async (req, res) => {
       return res.status(400).json({ error: 'This setup token has expired' });
     }
 
-    // Get stored challenge
-    const expectedChallenge = challenges.get(`setup-${token}`);
+    // Get stored challenge (returns undefined if expired)
+    const expectedChallenge = getChallenge(`setup-${token}`);
     if (!expectedChallenge) {
       return res.status(400).json({ error: 'No registration in progress' });
     }

@@ -1,5 +1,7 @@
 import express from 'express';
 import cors from 'cors';
+import helmet from 'helmet';
+import rateLimit from 'express-rate-limit';
 import dotenv from 'dotenv';
 import path from 'path';
 import { endPool } from './db';
@@ -13,19 +15,42 @@ dotenv.config({ quiet: true });
 const app = express();
 const port = parseInt(process.env.PORT || '3000', 10);
 
-// Middleware
+// Security headers
+app.use(helmet());
+
+// CORS
+const corsOrigin = process.env.CORS_ORIGIN;
+if (!corsOrigin && process.env.NODE_ENV === 'production') {
+  throw new Error('CORS_ORIGIN environment variable is required in production');
+}
 app.use(cors({
-  origin: process.env.CORS_ORIGIN || true, // Allow specific origin or all origins
-  credentials: true, // Allow credentials
+  origin: corsOrigin || true,
+  credentials: true,
 }));
-app.use(express.json());
+app.use(express.json({ limit: '100kb' }));
 app.use(express.urlencoded({ extended: true }));
 
+// Rate limiting — stricter for auth, lighter for general API
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 20,                   // 20 requests per window per IP
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many requests, please try again later' },
+});
+const apiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 100,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many requests, please try again later' },
+});
+
 // Routes
-app.use('/api/books', bookRoutes);
-app.use('/api/import', importRoutes);
-app.use('/api/auth', authRoutes);
-app.use('/api/search', searchRoutes);
+app.use('/api/auth', authLimiter, authRoutes);
+app.use('/api/books', apiLimiter, bookRoutes);
+app.use('/api/import', apiLimiter, importRoutes);
+app.use('/api/search', apiLimiter, searchRoutes);
 
 // Health check
 app.get('/health', (req, res) => {
