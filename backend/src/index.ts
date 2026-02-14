@@ -15,6 +15,8 @@ dotenv.config({ quiet: true });
 const app = express();
 const port = parseInt(process.env.PORT || '3000', 10);
 
+app.set('trust proxy', 1);
+
 // Security headers
 app.use(helmet());
 
