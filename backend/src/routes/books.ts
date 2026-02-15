@@ -2,7 +2,7 @@ import express from 'express';
 import { z } from 'zod';
 import { query, getClient } from '../db';
 import { authenticate, AuthRequest } from '../middleware/auth';
-import { getBookCoverUrl } from '../utils/bookCovers';
+import { getBookCoverUrl, getBookCoverUrlByCoverId, fetchOpenLibraryCoverId } from '../utils/bookCovers';
 
 const router = express.Router();
 
@@ -406,7 +406,16 @@ router.post('/populate-covers', async (req: AuthRequest, res) => {
     const updated: string[] = [];
 
     for (const book of booksResult.rows) {
-      const coverUrl = getBookCoverUrl(book.isbn13, book.isbn);
+      // Try ISBN-based URL first; fall back to Edition API cover ID lookup
+      let coverUrl = getBookCoverUrl(book.isbn13, book.isbn);
+
+      if (!coverUrl) {
+        const coverId = await fetchOpenLibraryCoverId(book.isbn13, book.isbn);
+        if (coverId) {
+          coverUrl = getBookCoverUrlByCoverId(coverId);
+        }
+      }
+
       if (coverUrl) {
         await query(
           'UPDATE books SET cover_url = $1 WHERE id = $2 AND user_id = $3',
