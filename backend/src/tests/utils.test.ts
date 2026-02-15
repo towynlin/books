@@ -1,6 +1,6 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { parseISBN, parseDate, mapStatus, combineNotes } from '../routes/import';
-import { getBookCoverUrl } from '../utils/bookCovers';
+import { getBookCoverUrl, fetchGoogleBooksCoverUrl } from '../utils/bookCovers';
 
 describe('parseISBN', () => {
   it('handles Goodreads CSV format with = and quotes', () => {
@@ -101,5 +101,132 @@ describe('getBookCoverUrl', () => {
   it('respects size parameter', () => {
     const url = getBookCoverUrl('9780679762881', null, 'S');
     expect(url).toBe('https://covers.openlibrary.org/b/isbn/9780679762881-S.jpg');
+  });
+});
+
+describe('fetchGoogleBooksCoverUrl', () => {
+  it('returns null when both ISBNs are null', async () => {
+    expect(await fetchGoogleBooksCoverUrl(null, null)).toBeNull();
+  });
+
+  it('prefers ISBN-13 when available', async () => {
+    const mockResponse = {
+      totalItems: 1,
+      items: [{
+        volumeInfo: {
+          imageLinks: {
+            thumbnail: 'http://books.google.com/books/content?id=abc123&printsec=frontcover&img=1&zoom=1',
+          },
+        },
+      }],
+    };
+
+    vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce({
+      ok: true,
+      json: async () => mockResponse,
+    } as Response);
+
+    const url = await fetchGoogleBooksCoverUrl('9780679762881', '0679762884');
+
+    expect(globalThis.fetch).toHaveBeenCalledWith(
+      expect.stringContaining('isbn:9780679762881')
+    );
+    expect(url).toBe('https://books.google.com/books/content?id=abc123&printsec=frontcover&img=1&zoom=0');
+
+    vi.restoreAllMocks();
+  });
+
+  it('falls back to ISBN-10 when ISBN-13 is null', async () => {
+    const mockResponse = {
+      totalItems: 1,
+      items: [{
+        volumeInfo: {
+          imageLinks: {
+            thumbnail: 'http://books.google.com/books/content?id=xyz789&printsec=frontcover&img=1&zoom=1',
+          },
+        },
+      }],
+    };
+
+    vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce({
+      ok: true,
+      json: async () => mockResponse,
+    } as Response);
+
+    const url = await fetchGoogleBooksCoverUrl(null, '0679762884');
+
+    expect(globalThis.fetch).toHaveBeenCalledWith(
+      expect.stringContaining('isbn:0679762884')
+    );
+    expect(url).toBe('https://books.google.com/books/content?id=xyz789&printsec=frontcover&img=1&zoom=0');
+
+    vi.restoreAllMocks();
+  });
+
+  it('returns null when API returns no items', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ totalItems: 0 }),
+    } as Response);
+
+    expect(await fetchGoogleBooksCoverUrl('9780000000000', null)).toBeNull();
+
+    vi.restoreAllMocks();
+  });
+
+  it('returns null when API returns item without imageLinks', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        totalItems: 1,
+        items: [{ volumeInfo: {} }],
+      }),
+    } as Response);
+
+    expect(await fetchGoogleBooksCoverUrl('9780000000000', null)).toBeNull();
+
+    vi.restoreAllMocks();
+  });
+
+  it('returns null when fetch fails', async () => {
+    vi.spyOn(globalThis, 'fetch').mockRejectedValueOnce(new Error('Network error'));
+
+    expect(await fetchGoogleBooksCoverUrl('9780679762881', null)).toBeNull();
+
+    vi.restoreAllMocks();
+  });
+
+  it('returns null when API returns non-ok status', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce({
+      ok: false,
+      status: 429,
+    } as Response);
+
+    expect(await fetchGoogleBooksCoverUrl('9780679762881', null)).toBeNull();
+
+    vi.restoreAllMocks();
+  });
+
+  it('upgrades HTTP to HTTPS in thumbnail URL', async () => {
+    const mockResponse = {
+      totalItems: 1,
+      items: [{
+        volumeInfo: {
+          imageLinks: {
+            thumbnail: 'http://books.google.com/books/content?id=test&zoom=1',
+          },
+        },
+      }],
+    };
+
+    vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce({
+      ok: true,
+      json: async () => mockResponse,
+    } as Response);
+
+    const url = await fetchGoogleBooksCoverUrl('9780679762881', null);
+    expect(url).toMatch(/^https:\/\//);
+
+    vi.restoreAllMocks();
   });
 });

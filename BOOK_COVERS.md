@@ -44,9 +44,58 @@ The `books` table already includes the necessary fields:
 - `isbn13` - ISBN-13 identifier (preferred)
 - `cover_url` - Can be used to cache the cover URL or override with custom image
 
+## Google Books API (Fallback)
+
+When Open Library doesn't have a cover for a given ISBN, we fall back to the Google Books API.
+
+### API Details
+
+- **Volumes endpoint**: `https://www.googleapis.com/books/v1/volumes?q=isbn:{isbn}`
+- **Authentication**: None required for basic usage
+- **Cost**: Free (up to 1,000 requests/day without an API key)
+- **Coverage**: Excellent, especially for newer and popular books
+
+### How It Works
+
+1. Query the Google Books Volumes API with the book's ISBN
+2. Extract `imageLinks.thumbnail` from the first matching volume
+3. Upgrade the thumbnail URL to a higher-resolution version by replacing `zoom=1` with `zoom=0`
+4. Store the resulting URL in the database `cover_url` field
+
+### Usage Examples
+
+**API Request**:
+```
+https://www.googleapis.com/books/v1/volumes?q=isbn:9780140328721
+```
+
+**Response** (relevant fields):
+```json
+{
+  "items": [
+    {
+      "volumeInfo": {
+        "imageLinks": {
+          "smallThumbnail": "http://books.google.com/books/content?id=...&zoom=5",
+          "thumbnail": "http://books.google.com/books/content?id=...&zoom=1"
+        }
+      }
+    }
+  ]
+}
+```
+
+### Implementation Notes
+
+- Used as a fallback when Open Library returns no cover
+- The `populate-covers` endpoint tries Open Library first, then Google Books
+- The search endpoint also tries Google Books when Open Library has no cover for a result
+- Thumbnail URLs from Google use HTTP by default; we upgrade them to HTTPS
+- We replace `zoom=1` with `zoom=0` in the URL for larger images
+- No API key is required for low-volume usage
+
 ### Future Enhancements
 
-If Open Library coverage proves insufficient, we can add fallback APIs:
-- Google Books API (excellent coverage for newer books)
+If additional coverage is still needed, we can add more fallback APIs:
 - ISBNdb.com (comprehensive but paid)
 - LibraryThing (good for older/niche books)

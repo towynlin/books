@@ -2,7 +2,7 @@ import express from 'express';
 import { z } from 'zod';
 import { query, getClient } from '../db';
 import { authenticate, AuthRequest } from '../middleware/auth';
-import { getBookCoverUrl } from '../utils/bookCovers';
+import { getBookCoverUrl, fetchGoogleBooksCoverUrl } from '../utils/bookCovers';
 
 const router = express.Router();
 
@@ -406,7 +406,13 @@ router.post('/populate-covers', async (req: AuthRequest, res) => {
     const updated: string[] = [];
 
     for (const book of booksResult.rows) {
-      const coverUrl = getBookCoverUrl(book.isbn13, book.isbn);
+      // Try Open Library first, then fall back to Google Books
+      let coverUrl = getBookCoverUrl(book.isbn13, book.isbn);
+
+      if (!coverUrl) {
+        coverUrl = await fetchGoogleBooksCoverUrl(book.isbn13, book.isbn);
+      }
+
       if (coverUrl) {
         await query(
           'UPDATE books SET cover_url = $1 WHERE id = $2 AND user_id = $3',

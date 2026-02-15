@@ -1,6 +1,6 @@
 import express from 'express';
 import { authenticate } from '../middleware/auth';
-import { getBookCoverUrl } from '../utils/bookCovers';
+import { getBookCoverUrl, fetchGoogleBooksCoverUrl } from '../utils/bookCovers';
 
 const router = express.Router();
 
@@ -93,6 +93,20 @@ router.get('/', async (req, res) => {
         pages: doc.number_of_pages_median,
       };
     });
+
+    // For results missing covers, try Google Books API as fallback
+    const coverPromises = results.map(async (result) => {
+      if (!result.coverUrl && (result.isbn13 || result.isbn)) {
+        const googleCover = await fetchGoogleBooksCoverUrl(
+          result.isbn13 || null,
+          result.isbn || null
+        );
+        if (googleCover) {
+          result.coverUrl = googleCover;
+        }
+      }
+    });
+    await Promise.all(coverPromises);
 
     res.json({
       total: data.numFound,
