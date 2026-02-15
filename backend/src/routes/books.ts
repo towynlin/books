@@ -161,6 +161,11 @@ router.patch('/:id', async (req: AuthRequest, res) => {
     const params: any[] = [];
     let paramIndex = 1;
 
+    // When marking as currently reading, remove from next-up list
+    if (data.status === 'reading') {
+      data.nextUpOrder = null;
+    }
+
     if (data.title !== undefined) {
       setClauses.push(`title = $${paramIndex++}`);
       params.push(data.title);
@@ -217,20 +222,65 @@ router.patch('/:id', async (req: AuthRequest, res) => {
     params.push(req.params.id);
     params.push(userId);
 
-    const sql = `
-      UPDATE books
-      SET ${setClauses.join(', ')}
-      WHERE id = $${paramIndex} AND user_id = $${paramIndex + 1}
-      RETURNING *
-    `;
+    // Use a transaction when clearing next_up_order to reorder remaining books
+    if (data.status === 'reading') {
+      const client = await getClient();
+      try {
+        await client.query('BEGIN');
 
-    const result = await query(sql, params);
+        // Get the book's current next_up_order before updating
+        const bookResult = await client.query(
+          'SELECT next_up_order FROM books WHERE id = $1 AND user_id = $2',
+          [req.params.id, userId]
+        );
 
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Book not found' });
+        const removedOrder = bookResult.rows[0]?.next_up_order;
+
+        const sql = `
+          UPDATE books
+          SET ${setClauses.join(', ')}
+          WHERE id = $${paramIndex} AND user_id = $${paramIndex + 1}
+          RETURNING *
+        `;
+        const result = await client.query(sql, params);
+
+        if (result.rows.length === 0) {
+          await client.query('ROLLBACK');
+          return res.status(404).json({ error: 'Book not found' });
+        }
+
+        // Reorder remaining next-up books
+        if (removedOrder !== null && removedOrder !== undefined) {
+          await client.query(
+            'UPDATE books SET next_up_order = next_up_order - 1 WHERE next_up_order > $1 AND user_id = $2',
+            [removedOrder, userId]
+          );
+        }
+
+        await client.query('COMMIT');
+        res.json(result.rows[0]);
+      } catch (error) {
+        await client.query('ROLLBACK');
+        throw error;
+      } finally {
+        client.release();
+      }
+    } else {
+      const sql = `
+        UPDATE books
+        SET ${setClauses.join(', ')}
+        WHERE id = $${paramIndex} AND user_id = $${paramIndex + 1}
+        RETURNING *
+      `;
+
+      const result = await query(sql, params);
+
+      if (result.rows.length === 0) {
+        return res.status(404).json({ error: 'Book not found' });
+      }
+
+      res.json(result.rows[0]);
     }
-
-    res.json(result.rows[0]);
   } catch (error) {
     if (error instanceof z.ZodError) {
       return res.status(400).json({ error: 'Invalid input', details: error.issues });
