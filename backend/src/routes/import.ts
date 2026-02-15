@@ -3,7 +3,7 @@ import multer from 'multer';
 import { parse } from 'csv-parse';
 import { query } from '../db';
 import { authenticate, AuthRequest } from '../middleware/auth';
-import { getBookCoverUrl } from '../utils/bookCovers';
+import { getBookCoverUrl, fetchGoogleBooksCoverUrl } from '../utils/bookCovers';
 
 const router = express.Router();
 const upload = multer({
@@ -134,7 +134,11 @@ router.post('/goodreads', upload.single('file'), async (req: AuthRequest, res) =
         const myRating = parseIntOrNull(row['My Rating']);
         const isbn = parseISBN(row['ISBN']);
         const isbn13 = parseISBN(row['ISBN13']);
-        const coverUrl = getBookCoverUrl(isbn13, isbn);
+        // Try Open Library first, then fall back to Google Books
+        let coverUrl = getBookCoverUrl(isbn13, isbn);
+        if (!coverUrl) {
+          coverUrl = await fetchGoogleBooksCoverUrl(isbn13, isbn);
+        }
 
         const result = await query(
           `INSERT INTO books (
