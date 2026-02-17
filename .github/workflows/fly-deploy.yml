@@ -10,6 +10,8 @@ on:
 jobs:
   deploy:
     name: Deploy app
+    permissions:
+      contents: read
     runs-on: ubuntu-latest
     if: ${{ github.event.workflow_run.conclusion == 'success' }}
     concurrency: deploy-group    # optional: ensure only one action runs at a time
