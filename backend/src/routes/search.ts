@@ -1,6 +1,6 @@
 import express from 'express';
 import { authenticate } from '../middleware/auth';
-import { getBookCoverUrl } from '../utils/bookCovers';
+import { getBookCoverUrl, getBookCoverUrlByCoverId } from '../utils/bookCovers';
 
 const router = express.Router();
 
@@ -75,10 +75,13 @@ router.get('/', async (req, res) => {
         isbn = isbn10List[0] || isbn13List[0];
       }
 
-      // Generate cover URL using our existing utility
+      // Generate cover URL: prefer ISBN-based, fall back to cover ID from search results
       let coverUrl: string | undefined;
       if (isbn13 || isbn) {
         coverUrl = getBookCoverUrl(isbn13 || null, isbn || null) || undefined;
+      }
+      if (!coverUrl && doc.cover_i) {
+        coverUrl = getBookCoverUrlByCoverId(doc.cover_i);
       }
 
       return {
