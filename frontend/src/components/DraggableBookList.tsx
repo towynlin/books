@@ -20,9 +20,10 @@ import { useReorderNextUp } from '../hooks/useBooks';
 
 interface DraggableBookListProps {
   books: Book[];
+  onBookClick?: (id: string) => void;
 }
 
-export function DraggableBookList({ books: initialBooks }: DraggableBookListProps) {
+export function DraggableBookList({ books: initialBooks, onBookClick }: DraggableBookListProps) {
   const [books, setBooks] = useState(initialBooks);
   const reorderNextUp = useReorderNextUp();
 
@@ -73,7 +74,7 @@ export function DraggableBookList({ books: initialBooks }: DraggableBookListProp
         <SortableContext items={books.map((book) => book.id)} strategy={verticalListSortingStrategy}>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pl-6">
             {books.map((book) => (
-              <DraggableBookCard key={book.id} book={book} />
+              <DraggableBookCard key={book.id} book={book} onClick={onBookClick ? () => onBookClick(book.id) : undefined} />
             ))}
           </div>
         </SortableContext>

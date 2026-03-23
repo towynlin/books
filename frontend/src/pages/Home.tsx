@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useBooks } from '../hooks/useBooks';
 import { BookCard } from '../components/BookCard';
 import { DraggableBookList } from '../components/DraggableBookList';
@@ -47,6 +48,7 @@ const sortOptions: Record<string, { id: SortOption; label: string }[]> = {
 };
 
 export function Home() {
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<ViewTab>('reading');
   const [sortBy, setSortBy] = useState<Record<string, SortOption>>({
     want_to_read: 'date_added',
@@ -197,11 +199,11 @@ export function Home() {
 
           {filteredBooks && filteredBooks.length > 0 && (
             activeTab === 'next_up' ? (
-              <DraggableBookList books={filteredBooks} />
+              <DraggableBookList books={filteredBooks} onBookClick={(id) => navigate(`/books/${id}`)} />
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {filteredBooks.map((book) => (
-                  <BookCard key={book.id} book={book} />
+                  <BookCard key={book.id} book={book} onClick={() => navigate(`/books/${book.id}`)} />
                 ))}
               </div>
             )
