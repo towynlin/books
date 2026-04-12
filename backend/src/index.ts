@@ -65,7 +65,7 @@ if (process.env.NODE_ENV === 'production') {
   app.use(express.static(path.join(__dirname, '../public')));
 
   // Serve index.html for all non-API routes (SPA routing)
-  app.get('*', apiLimiter, (req, res, next) => {
+  app.get('{*splat}', apiLimiter, (req, res, next) => {
     // Skip API routes, health check, and well-known paths (for ACME challenges, etc.)
     if (req.path.startsWith('/api/') || req.path === '/health' || req.path.startsWith('/.well-known/')) {
       return next();
