@@ -5,9 +5,10 @@ import { BookCard } from './BookCard';
 
 interface DraggableBookCardProps {
   book: Book;
+  onClick?: () => void;
 }
 
-export function DraggableBookCard({ book }: DraggableBookCardProps) {
+export function DraggableBookCard({ book, onClick }: DraggableBookCardProps) {
   const {
     attributes,
     listeners,
@@ -48,7 +49,7 @@ export function DraggableBookCard({ book }: DraggableBookCardProps) {
           <circle cx="10" cy="12" r="1.5" fill="currentColor" />
         </svg>
       </div>
-      <BookCard book={book} />
+      <BookCard book={book} onClick={onClick} />
     </div>
   );
 }
