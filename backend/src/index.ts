@@ -65,9 +65,9 @@ if (process.env.NODE_ENV === 'production') {
   app.use(express.static(path.join(__dirname, '../public')));
 
   // Serve index.html for all non-API routes (SPA routing)
-  app.get('{*splat}', apiLimiter, (req, res, next) => {
-    // Skip API routes
-    if (req.path.startsWith('/api/') || req.path === '/health') {
+  app.get('*', apiLimiter, (req, res, next) => {
+    // Skip API routes, health check, and well-known paths (for ACME challenges, etc.)
+    if (req.path.startsWith('/api/') || req.path === '/health' || req.path.startsWith('/.well-known/')) {
       return next();
     }
     res.sendFile(path.join(__dirname, '../public/index.html'));
