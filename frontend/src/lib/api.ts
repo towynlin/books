@@ -15,6 +15,26 @@ function getAuthToken(): string | null {
   return localStorage.getItem('authToken');
 }
 
+// Convert snake_case keys to camelCase recursively so frontend types match DB column names
+function snakeToCamel(str: string): string {
+  return str.replace(/_([a-z])/g, (_, letter) => letter.toUpperCase());
+}
+
+function transformKeysToCamel(obj: unknown): unknown {
+  if (Array.isArray(obj)) {
+    return obj.map(transformKeysToCamel);
+  }
+  if (obj !== null && typeof obj === 'object') {
+    return Object.fromEntries(
+      Object.entries(obj as Record<string, unknown>).map(([key, value]) => [
+        snakeToCamel(key),
+        transformKeysToCamel(value),
+      ])
+    );
+  }
+  return obj;
+}
+
 async function fetchAPI<T>(endpoint: string, options?: RequestInit): Promise<T> {
   const token = getAuthToken();
   const headers: Record<string, string> = {
@@ -41,7 +61,8 @@ async function fetchAPI<T>(endpoint: string, options?: RequestInit): Promise<T> 
     return undefined as T;
   }
 
-  return response.json();
+  const data = await response.json();
+  return transformKeysToCamel(data) as T;
 }
 
 export const booksAPI = {
