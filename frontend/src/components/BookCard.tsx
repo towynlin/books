@@ -45,11 +45,13 @@ export function BookCard({ book, onClick }: BookCardProps) {
 
   const handleAddToNextUp = (e: React.MouseEvent) => {
     e.stopPropagation();
+    setMenuOpen(false);
     addToNextUp.mutate(book.id);
   };
 
   const handleRemoveFromNextUp = (e: React.MouseEvent) => {
     e.stopPropagation();
+    setMenuOpen(false);
     removeFromNextUp.mutate(book.id);
   };
 
@@ -156,6 +158,29 @@ export function BookCard({ book, onClick }: BookCardProps) {
               </button>
             )}
 
+            {book.status !== 'reading' && (
+              <>
+                <div className="my-1 border-t border-soft-peach" />
+                {isInNextUp ? (
+                  <button
+                    onClick={handleRemoveFromNextUp}
+                    disabled={removeFromNextUp.isPending}
+                    className="w-full px-4 py-2 text-left text-sm text-charcoal hover:bg-soft-peach/30 disabled:opacity-50"
+                  >
+                    Remove from Next Up
+                  </button>
+                ) : (
+                  <button
+                    onClick={handleAddToNextUp}
+                    disabled={addToNextUp.isPending}
+                    className="w-full px-4 py-2 text-left text-sm text-charcoal hover:bg-soft-peach/30 disabled:opacity-50"
+                  >
+                    Add to Next Up
+                  </button>
+                )}
+              </>
+            )}
+
             <div className="my-1 border-t border-soft-peach" />
 
             <button
@@ -223,29 +248,6 @@ export function BookCard({ book, onClick }: BookCardProps) {
       {book.notes && (
         <div className="mt-3 text-sm text-charcoal/80 line-clamp-2">
           {book.notes}
-        </div>
-      )}
-
-      {/* Next Up controls - not shown for currently reading books */}
-      {book.status !== 'reading' && (
-        <div className="mt-3 pt-3 border-t-2 border-soft-peach/50">
-          {isInNextUp ? (
-            <button
-              onClick={handleRemoveFromNextUp}
-              disabled={removeFromNextUp.isPending}
-              className="w-full px-3 py-2 text-sm font-semibold text-terracotta bg-soft-peach rounded-full hover:bg-terracotta hover:text-white transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {removeFromNextUp.isPending ? 'Removing...' : 'Remove from Next Up'}
-            </button>
-          ) : (
-            <button
-              onClick={handleAddToNextUp}
-              disabled={addToNextUp.isPending}
-              className="w-full px-3 py-2 text-sm font-semibold text-white bg-forest-green rounded-full hover:bg-forest-green/90 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {addToNextUp.isPending ? 'Adding...' : 'Add to Next Up'}
-            </button>
-          )}
         </div>
       )}
 
