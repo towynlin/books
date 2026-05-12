@@ -18,7 +18,18 @@ const port = parseInt(process.env.PORT || '3000', 10);
 app.set('trust proxy', 1);
 
 // Security headers
-app.use(helmet());
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      ...helmet.contentSecurityPolicy.getDefaultDirectives(),
+      // Book covers are served by covers.openlibrary.org, which redirects to archive.org
+      'img-src': ["'self'", 'https://covers.openlibrary.org', 'https://*.archive.org', 'data:'],
+      // Google Fonts loaded in index.html
+      'style-src': ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
+      'font-src': ["'self'", 'https://fonts.gstatic.com'],
+    },
+  },
+}));
 
 // CORS
 const corsOrigin = process.env.CORS_ORIGIN;
