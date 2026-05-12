@@ -344,6 +344,13 @@ export const authAPI = {
     return response.json();
   },
 
+  // Regenerate recovery codes (invalidates all existing codes)
+  regenerateRecoveryCodes: async (): Promise<{ recoveryCodes: string[] }> => {
+    return fetchAPI<{ recoveryCodes: string[] }>('/api/auth/recovery-codes/regenerate', {
+      method: 'POST',
+    });
+  },
+
   // Generate invitation link
   generateInvitation: async (): Promise<{ token: string; expiresAt: string; inviteUrl: string }> => {
     return fetchAPI<{ token: string; expiresAt: string; inviteUrl: string }>('/api/auth/invitation/generate', {
