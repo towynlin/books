@@ -714,6 +714,57 @@ router.delete('/passkeys/:id', authenticate, async (req: AuthRequest, res) => {
   }
 });
 
+// ===== Recovery Code Management Endpoints (Authenticated) =====
+
+// POST /api/auth/recovery-codes/regenerate - Regenerate recovery codes
+router.post('/recovery-codes/regenerate', authenticate, async (req: AuthRequest, res) => {
+  try {
+    const userId = req.user?.userId;
+    if (!userId) {
+      return res.status(401).json({ error: 'Not authenticated' });
+    }
+
+    const client = await getClient();
+    const recoveryCodes: string[] = [];
+
+    try {
+      await client.query('BEGIN');
+
+      // Delete all existing recovery codes for the user
+      await client.query('DELETE FROM recovery_codes WHERE user_id = $1', [userId]);
+
+      // Generate 10 new recovery codes
+      for (let i = 0; i < 10; i++) {
+        const code = [
+          crypto.randomBytes(2).toString('hex').toUpperCase(),
+          crypto.randomBytes(2).toString('hex').toUpperCase(),
+          crypto.randomBytes(2).toString('hex').toUpperCase(),
+          crypto.randomBytes(2).toString('hex').toUpperCase(),
+        ].join('-');
+        recoveryCodes.push(code);
+
+        const hashedCode = await bcrypt.hash(code, 10);
+        await client.query(
+          'INSERT INTO recovery_codes (user_id, code) VALUES ($1, $2)',
+          [userId, hashedCode]
+        );
+      }
+
+      await client.query('COMMIT');
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+
+    res.json({ recoveryCodes });
+  } catch (error) {
+    console.error('Error regenerating recovery codes:', error);
+    res.status(500).json({ error: 'Failed to regenerate recovery codes' });
+  }
+});
+
 // ===== Setup Token Endpoints (for adding devices) =====
 
 // POST /api/auth/setup-token/generate - Generate a setup token (authenticated)

@@ -17,6 +17,8 @@ export function Passkeys() {
   const [deviceName, setDeviceName] = useState('');
   const [setupLink, setSetupLink] = useState<string | null>(null);
   const [isGeneratingLink, setIsGeneratingLink] = useState(false);
+  const [isRegeneratingCodes, setIsRegeneratingCodes] = useState(false);
+  const [newRecoveryCodes, setNewRecoveryCodes] = useState<string[] | null>(null);
 
   useEffect(() => {
     loadPasskeys();
@@ -99,6 +101,28 @@ export function Passkeys() {
       setError(err instanceof Error ? err.message : 'Failed to generate setup link');
     } finally {
       setIsGeneratingLink(false);
+    }
+  };
+
+  const handleRegenerateRecoveryCodes = async () => {
+    if (!confirm('Are you sure you want to regenerate your recovery codes? All existing recovery codes will be invalidated immediately.')) {
+      return;
+    }
+
+    setError(null);
+    setSuccess(null);
+    setIsRegeneratingCodes(true);
+    setNewRecoveryCodes(null);
+
+    try {
+      const response = await authAPI.regenerateRecoveryCodes();
+      setNewRecoveryCodes(response.recoveryCodes);
+      setSuccess('Recovery codes regenerated. Save these codes in a safe place — they will not be shown again.');
+    } catch (err) {
+      console.error('Failed to regenerate recovery codes:', err);
+      setError(err instanceof Error ? err.message : 'Failed to regenerate recovery codes');
+    } finally {
+      setIsRegeneratingCodes(false);
     }
   };
 
@@ -197,6 +221,45 @@ export function Passkeys() {
             {isAdding ? 'Adding Passkey...' : 'Add Passkey for This Device'}
           </button>
         </form>
+      </div>
+
+      <div className="bg-white shadow-md rounded-2xl border border-soft-peach/20 p-6 mb-6">
+        <h2 className="text-xl font-semibold font-serif text-forest-green mb-4">Recovery Codes</h2>
+        <p className="text-sm text-charcoal/60 mb-4">
+          Recovery codes let you log in if you lose access to all your passkeys. Each code can only be used once.
+          Regenerating codes will immediately invalidate all existing codes.
+        </p>
+        <button
+          onClick={handleRegenerateRecoveryCodes}
+          disabled={isRegeneratingCodes}
+          className="w-full py-3 px-4 text-sm font-medium rounded-full text-white bg-terracotta hover:bg-terracotta/90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-terracotta disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+        >
+          {isRegeneratingCodes ? 'Regenerating...' : 'Regenerate Recovery Codes'}
+        </button>
+
+        {newRecoveryCodes && (
+          <div className="mt-4 space-y-3">
+            <div className="bg-amber-50 border border-amber-300 rounded-xl p-3">
+              <p className="text-xs text-amber-800 font-medium">Save these codes now — they will not be shown again. Each code can only be used once.</p>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              {newRecoveryCodes.map((code, index) => (
+                <div key={index} className="bg-soft-peach/30 border border-soft-peach rounded-lg p-2 text-center font-mono text-sm text-charcoal">
+                  {code}
+                </div>
+              ))}
+            </div>
+            <button
+              onClick={() => {
+                navigator.clipboard.writeText(newRecoveryCodes.join('\n'));
+                alert('Recovery codes copied to clipboard!');
+              }}
+              className="w-full py-3 px-4 border-2 border-forest-green rounded-full text-sm font-medium text-forest-green bg-white hover:bg-forest-green hover:text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-forest-green transition-colors"
+            >
+              Copy All Codes
+            </button>
+          </div>
+        )}
       </div>
 
       <div className="bg-white shadow-md rounded-2xl border border-soft-peach/20 p-6">
