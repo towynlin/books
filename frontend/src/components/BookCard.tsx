@@ -100,7 +100,7 @@ export function BookCard({ book, onClick }: BookCardProps) {
   return (
     <div
       onClick={onClick}
-      className="bg-white rounded-2xl shadow-md hover:shadow-xl transition-all p-4 cursor-pointer relative hover:-translate-y-1 border border-soft-peach/20"
+      className={`bg-white rounded-2xl shadow-md hover:shadow-xl transition-all p-4 cursor-pointer relative hover:-translate-y-1 border border-soft-peach/20${menuOpen ? ' z-10' : ''}`}
     >
       {/* Three-dots menu */}
       <div ref={menuRef} className="absolute top-2 right-2">
