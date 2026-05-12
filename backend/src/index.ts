@@ -22,8 +22,18 @@ app.use(helmet({
   contentSecurityPolicy: {
     directives: {
       ...helmet.contentSecurityPolicy.getDefaultDirectives(),
-      // Book covers are served by covers.openlibrary.org, which redirects to archive.org
-      'img-src': ["'self'", 'https://covers.openlibrary.org', 'https://*.archive.org', 'data:'],
+      // Book covers are served by covers.openlibrary.org, which 302s to
+      // https://archive.org/download/... and then again to https://ia######.us.archive.org/...
+      // Every URL in the redirect chain must satisfy img-src, so we list both the
+      // apex (archive.org) and the wildcard (*.archive.org) — the wildcard does not
+      // cover the apex.
+      'img-src': [
+        "'self'",
+        'https://covers.openlibrary.org',
+        'https://archive.org',
+        'https://*.archive.org',
+        'data:',
+      ],
       // Google Fonts loaded in index.html
       'style-src': ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
       'font-src': ["'self'", 'https://fonts.gstatic.com'],
