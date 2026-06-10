@@ -1,4 +1,8 @@
-import { Pool, PoolClient } from 'pg';
+import { Pool, PoolClient, types } from 'pg';
+
+// pg returns NUMERIC columns (e.g. books.average_rating) as strings to avoid
+// precision loss; our numerics are small ratings, so parse them to numbers.
+types.setTypeParser(types.builtins.NUMERIC, (value) => parseFloat(value));
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,

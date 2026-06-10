@@ -49,6 +49,8 @@ function formatDate(dateStr: string | null): string | null {
 function BookDetailContent({ book }: { book: Book }) {
   const navigate = useNavigate();
   const coverUrl = book.coverUrl || getBookCoverUrl(book.isbn13, book.isbn, 'L');
+  // average_rating is NUMERIC in Postgres and may arrive as a string
+  const averageRating = book.averageRating != null ? Number(book.averageRating) : null;
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-8">
@@ -114,15 +116,15 @@ function BookDetailContent({ book }: { book: Book }) {
               </div>
             )}
 
-            {book.averageRating && (
+            {averageRating != null && !Number.isNaN(averageRating) && (
               <div className="mt-3">
                 <p className="text-xs font-semibold uppercase tracking-wide text-charcoal/50 mb-1">
                   Avg. Rating
                 </p>
                 <div className="flex items-center gap-2">
-                  <StarRating rating={Math.round(book.averageRating)} />
+                  <StarRating rating={Math.round(averageRating)} />
                   <span className="text-sm text-charcoal/60">
-                    ({book.averageRating.toFixed(2)})
+                    ({averageRating.toFixed(2)})
                   </span>
                 </div>
               </div>
