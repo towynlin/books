@@ -1,3 +1,4 @@
+import { useState, useRef, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Link, Navigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
@@ -21,6 +22,18 @@ const queryClient = new QueryClient({
 
 function Navigation() {
   const { isAuthenticated, user, logout } = useAuth();
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setMenuOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   if (!isAuthenticated) {
     return null;
@@ -30,47 +43,67 @@ function Navigation() {
     <nav className="bg-white shadow-md border-b border-soft-peach">
       <div className="max-w-7xl mx-auto px-4">
         <div className="flex justify-between items-center h-16">
-          <div className="flex items-center gap-8">
-            <Link to="/" className="text-2xl font-bold font-serif text-forest-green">
-              Books
-            </Link>
-            <div className="flex gap-4">
-              <Link
-                to="/"
-                className="text-charcoal/80 hover:text-terracotta transition-colors"
-              >
-                Library
-              </Link>
-              <Link
-                to="/import"
-                className="text-charcoal/80 hover:text-terracotta transition-colors"
-              >
-                Import
-              </Link>
-              <Link
-                to="/passkeys"
-                className="text-charcoal/80 hover:text-terracotta transition-colors"
-              >
-                Passkeys
-              </Link>
-              <Link
-                to="/invitations"
-                className="text-charcoal/80 hover:text-terracotta transition-colors"
-              >
-                Invitations
-              </Link>
-            </div>
-          </div>
-          <div className="flex items-center gap-4">
-            <span className="text-sm text-charcoal/60">
-              {user?.username}
-            </span>
+          <Link to="/" className="text-2xl font-bold font-serif text-forest-green">
+            Books
+          </Link>
+          <div className="relative" ref={menuRef}>
             <button
-              onClick={logout}
-              className="text-sm text-terracotta hover:text-terracotta/80 transition-colors"
+              onClick={() => setMenuOpen((o) => !o)}
+              aria-label="Open menu"
+              aria-expanded={menuOpen}
+              className="p-2 rounded-md text-charcoal/70 hover:text-terracotta hover:bg-soft-peach/30 transition-colors"
             >
-              Logout
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                {menuOpen ? (
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                ) : (
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+                )}
+              </svg>
             </button>
+            {menuOpen && (
+              <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg border border-soft-peach py-1 z-50">
+                <div className="px-4 py-2 text-xs text-charcoal/50 border-b border-soft-peach">
+                  {user?.username}
+                </div>
+                <Link
+                  to="/"
+                  onClick={() => setMenuOpen(false)}
+                  className="block px-4 py-2 text-sm text-charcoal/80 hover:text-terracotta hover:bg-soft-peach/20 transition-colors"
+                >
+                  Library
+                </Link>
+                <Link
+                  to="/import"
+                  onClick={() => setMenuOpen(false)}
+                  className="block px-4 py-2 text-sm text-charcoal/80 hover:text-terracotta hover:bg-soft-peach/20 transition-colors"
+                >
+                  Import
+                </Link>
+                <Link
+                  to="/passkeys"
+                  onClick={() => setMenuOpen(false)}
+                  className="block px-4 py-2 text-sm text-charcoal/80 hover:text-terracotta hover:bg-soft-peach/20 transition-colors"
+                >
+                  Passkeys
+                </Link>
+                <Link
+                  to="/invitations"
+                  onClick={() => setMenuOpen(false)}
+                  className="block px-4 py-2 text-sm text-charcoal/80 hover:text-terracotta hover:bg-soft-peach/20 transition-colors"
+                >
+                  Invitations
+                </Link>
+                <div className="border-t border-soft-peach mt-1 pt-1">
+                  <button
+                    onClick={() => { setMenuOpen(false); logout(); }}
+                    className="block w-full text-left px-4 py-2 text-sm text-terracotta hover:text-terracotta/80 hover:bg-soft-peach/20 transition-colors"
+                  >
+                    Logout
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>
