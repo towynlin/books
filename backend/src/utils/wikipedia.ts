@@ -165,8 +165,8 @@ export function stripHtml(html: string): string {
     ],
   });
 
-  // sanitize-html returns text with &, < and > entity-encoded;
-  // decode for plain-text storage.
+  // sanitize-html returns text with &, < and > entity-encoded.
+  // Decode for plain-text storage.
   // The escape character (&) is unescaped last so a pre-encoded
   // sequence like &amp;lt; can't be double-unescaped into <
   text = text
