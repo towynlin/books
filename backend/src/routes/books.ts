@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { query, getClient } from '../db';
 import { authenticate, AuthRequest } from '../middleware/auth';
 import { getBookCoverUrl, getBookCoverUrlByCoverId, fetchOpenLibraryCoverId } from '../utils/bookCovers';
+import { enrichBook } from '../utils/enrichment';
 
 const router = express.Router();
 
@@ -141,6 +142,12 @@ router.post('/', async (req: AuthRequest, res) => {
       ]
     );
 
+    // Fetch synopsis and reviews in the background; the detail page also
+    // triggers enrichment lazily, so failures here are non-fatal
+    enrichBook(result.rows[0].id, userId).catch((error) =>
+      console.error('Error enriching new book:', error)
+    );
+
     res.status(201).json(result.rows[0]);
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -148,6 +155,25 @@ router.post('/', async (req: AuthRequest, res) => {
     }
     console.error('Error creating book:', error);
     res.status(500).json({ error: 'Failed to create book' });
+  }
+});
+
+// POST /api/books/:id/enrich - Fetch and cache synopsis + critic reviews
+router.post('/:id/enrich', async (req: AuthRequest, res) => {
+  try {
+    const userId = req.user!.userId;
+    const force = req.body?.force === true;
+
+    const book = await enrichBook(String(req.params.id), userId, force);
+
+    if (!book) {
+      return res.status(404).json({ error: 'Book not found' });
+    }
+
+    res.json(book);
+  } catch (error) {
+    console.error('Error enriching book:', error);
+    res.status(500).json({ error: 'Failed to enrich book' });
   }
 });
 

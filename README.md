@@ -74,6 +74,13 @@ This app can be deployed to Fly.io with a few simple commands.
 
    **Important:** `RP_ID` and `RP_ORIGIN` must match your production domain exactly or passkeys won't work!
 
+   Optionally, set a [NYT Books API](https://developer.nytimes.com) key to show
+   New York Times critic reviews on book detail pages (free tier; results are
+   cached in the database and fetched server-side only):
+   ```bash
+   fly secrets set NYT_API_KEY="your-nyt-api-key"
+   ```
+
 5. **Deploy:**
    ```bash
    fly deploy

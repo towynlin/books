@@ -135,6 +135,13 @@ export const booksAPI = {
     });
   },
 
+  // Fetch and cache synopsis + critic reviews for a book
+  enrichBook: async (id: string): Promise<Book> => {
+    return fetchAPI<Book>(`/api/books/${id}/enrich`, {
+      method: 'POST',
+    });
+  },
+
   // Populate cover URLs for books missing them
   populateCovers: async (): Promise<{ success: boolean; updated: number; message: string }> => {
     return fetchAPI<{ success: boolean; updated: number; message: string }>('/api/books/populate-covers', {

@@ -64,7 +64,20 @@ CREATE TABLE books (
   pages INTEGER,
   year_published INTEGER,
   original_publication_year INTEGER,
-  average_rating NUMERIC(3, 2)
+  average_rating NUMERIC(3, 2),
+
+  -- Cached enrichment data (synopsis + critic reviews)
+  -- A non-null *_fetched_at with a NULL value column means
+  -- "looked it up, nothing found — don't retry"
+  description TEXT,
+  description_source TEXT,          -- 'openlibrary' | 'wikipedia'
+  description_url TEXT,             -- attribution link
+  description_fetched_at TIMESTAMPTZ,
+  wikipedia_url TEXT,
+  wikipedia_reception TEXT,         -- plain-text Reception section excerpt
+  wikipedia_fetched_at TIMESTAMPTZ,
+  nyt_reviews JSONB,                -- [{url, byline, summary, publication_dt}]
+  nyt_fetched_at TIMESTAMPTZ
 );
 
 -- Passkey credentials table
