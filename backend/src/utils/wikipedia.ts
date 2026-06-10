@@ -138,10 +138,9 @@ export async function findWikipediaArticle(
 }
 
 /**
- * Strip HTML to plain text. Tag removal is delegated to sanitize-html (a
- * real parser, unlike regex stripping it can't be fooled by nested or
- * malformed tags); non-prose elements — headings, tables, styling, and
- * <sup> citation markers — are dropped along with their content.
+ * Strip HTML to plain text. Tag removal is delegated to sanitize-html;
+ * non-prose elements — headings, tables, styling, and <sup>
+ * citation markers — are dropped along with their content.
  */
 export function stripHtml(html: string): string {
   // Insert a space before each tag so adjacent text doesn't run together
@@ -166,9 +165,10 @@ export function stripHtml(html: string): string {
     ],
   });
 
-  // sanitize-html returns text with &, < and > entity-encoded; decode for
-  // plain-text storage. The escape character (&) is unescaped last so a
-  // pre-encoded sequence like &amp;lt; can't be double-unescaped into <
+  // sanitize-html returns text with &, < and > entity-encoded;
+  // decode for plain-text storage.
+  // The escape character (&) is unescaped last so a pre-encoded
+  // sequence like &amp;lt; can't be double-unescaped into <
   text = text
     .replace(/\u00a0/g, ' ')
     .replace(/&lt;/g, '<')
