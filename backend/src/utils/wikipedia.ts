@@ -6,6 +6,8 @@
  * Wikipedia text is CC BY-SA licensed; the frontend shows attribution links.
  */
 
+import sanitizeHtml from 'sanitize-html';
+
 const FETCH_TIMEOUT_MS = 8000;
 
 // Wikimedia API etiquette asks for a descriptive User-Agent
@@ -136,22 +138,42 @@ export async function findWikipediaArticle(
 }
 
 /**
- * Strip HTML to plain text: drops style/script/table blocks and <sup>
- * citation markers, removes tags, decodes common entities.
+ * Strip HTML to plain text. Tag removal is delegated to sanitize-html (a
+ * real parser, unlike regex stripping it can't be fooled by nested or
+ * malformed tags); non-prose elements — headings, tables, styling, and
+ * <sup> citation markers — are dropped along with their content.
  */
 export function stripHtml(html: string): string {
-  let text = html
-    .replace(/<(style|script|table)[\s\S]*?<\/\1>/gi, '')
-    .replace(/<sup[\s\S]*?<\/sup>/gi, '')
-    .replace(/<[^>]+>/g, ' ');
+  // Insert a space before each tag so adjacent text doesn't run together
+  // when the tags are removed
+  let text = sanitizeHtml(html.replace(/</g, ' <'), {
+    allowedTags: [],
+    allowedAttributes: {},
+    nonTextTags: [
+      'style',
+      'script',
+      'textarea',
+      'option',
+      'noscript',
+      'table',
+      'sup',
+      'h1',
+      'h2',
+      'h3',
+      'h4',
+      'h5',
+      'h6',
+    ],
+  });
 
+  // sanitize-html returns text with &, < and > entity-encoded; decode for
+  // plain-text storage. The escape character (&) is unescaped last so a
+  // pre-encoded sequence like &amp;lt; can't be double-unescaped into <
   text = text
-    .replace(/&amp;/g, '&')
+    .replace(/\u00a0/g, ' ')
     .replace(/&lt;/g, '<')
     .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .replace(/&#0?39;/g, "'")
-    .replace(/&nbsp;/g, ' ');
+    .replace(/&amp;/g, '&');
 
   // Leftover citation markers and section [edit] links
   text = text.replace(/\[\d+\]/g, '').replace(/\[edit\]/gi, '');
@@ -225,8 +247,8 @@ export async function fetchReceptionExcerpt(pageTitle: string): Promise<string |
     return null;
   }
 
-  // Drop the section heading itself from the parsed HTML before stripping
-  let text = stripHtml(html.replace(/<h[1-6][\s\S]*?<\/h[1-6]>/gi, ''));
+  // stripHtml drops the section's own heading along with other non-prose tags
+  let text = stripHtml(html);
   if (!text) {
     return null;
   }

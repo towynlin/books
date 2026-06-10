@@ -217,6 +217,20 @@ describe('stripHtml', () => {
       'Praise & criticism "abounded"'
     );
   });
+
+  it('is not fooled by nested tag smuggling', () => {
+    expect(stripHtml('<scr<script>ipt>alert(1)</script>foo')).not.toContain('<script');
+    expect(stripHtml('<<script>script>alert(1)<</script>/script>')).not.toContain('<script>');
+  });
+
+  it('does not double-unescape pre-encoded entities', () => {
+    expect(stripHtml('&amp;lt;script&amp;gt;')).toBe('&lt;script&gt;');
+    expect(stripHtml('&amp;amp;')).toBe('&amp;');
+  });
+
+  it('drops heading content', () => {
+    expect(stripHtml('<h2>Reception</h2><p>Critics loved it.</p>')).toBe('Critics loved it.');
+  });
 });
 
 describe('fetchNytReviews', () => {
