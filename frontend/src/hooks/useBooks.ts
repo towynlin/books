@@ -79,6 +79,18 @@ export function useAddToNextUp() {
   });
 }
 
+export function useEnrichBook() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (id: string) => booksAPI.enrichBook(id),
+    // Update the detail page in place rather than refetching
+    onSuccess: (book) => {
+      queryClient.setQueryData(['books', book.id], book);
+    },
+  });
+}
+
 export function useRemoveFromNextUp() {
   const queryClient = useQueryClient();
 

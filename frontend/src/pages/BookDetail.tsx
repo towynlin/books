@@ -1,5 +1,6 @@
+import { useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { useBook } from '../hooks/useBooks';
+import { useBook, useEnrichBook } from '../hooks/useBooks';
 import { getBookCoverUrl } from '../lib/bookCovers';
 import { Book, BookStatus } from '../types/book';
 
@@ -46,11 +47,51 @@ function formatDate(dateStr: string | null): string | null {
   });
 }
 
+function ExternalLink({ href, children }: { href: string; children: React.ReactNode }) {
+  return (
+    <a
+      href={href}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="text-forest-green underline decoration-forest-green/30 hover:decoration-forest-green transition-colors"
+    >
+      {children}
+    </a>
+  );
+}
+
+const descriptionSourceLabels = {
+  openlibrary: 'Open Library',
+  wikipedia: 'Wikipedia (CC BY-SA)',
+} as const;
+
 function BookDetailContent({ book }: { book: Book }) {
   const navigate = useNavigate();
   const coverUrl = book.coverUrl || getBookCoverUrl(book.isbn13, book.isbn, 'L');
   // average_rating is NUMERIC in Postgres and may arrive as a string
   const averageRating = book.averageRating != null ? Number(book.averageRating) : null;
+
+  // Lazily fetch synopsis + reviews the first time the detail page is opened.
+  // The backend stamps *_fetched_at even when nothing is found, so this only
+  // fires for books that haven't been looked up yet (or retries after errors).
+  const enrich = useEnrichBook();
+  const enrichFired = useRef(false);
+  const needsEnrichment =
+    book.descriptionFetchedAt === null ||
+    book.wikipediaFetchedAt === null ||
+    book.nytFetchedAt === null;
+  useEffect(() => {
+    if (needsEnrichment && !enrichFired.current) {
+      enrichFired.current = true;
+      enrich.mutate(book.id);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [book.id, needsEnrichment]);
+
+  const lookingUpSynopsis = !book.description && book.descriptionFetchedAt === null;
+  const bookMarksUrl = `https://bookmarks.reviews/?s=${encodeURIComponent(
+    `${book.title} ${book.author}`
+  )}`;
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-8">
@@ -156,6 +197,35 @@ function BookDetailContent({ book }: { book: Book }) {
           </dl>
         </div>
 
+        {/* Synopsis */}
+        {(book.description || lookingUpSynopsis) && (
+          <>
+            <div className="border-t border-soft-peach/50" />
+            <div className="p-8">
+              <h2 className="text-xs font-semibold uppercase tracking-wide text-charcoal/50 mb-3">
+                Synopsis
+              </h2>
+              {book.description ? (
+                <>
+                  <p className="text-charcoal whitespace-pre-wrap leading-relaxed">
+                    {book.description}
+                  </p>
+                  {book.descriptionSource && book.descriptionUrl && (
+                    <p className="mt-3 text-xs text-charcoal/50">
+                      Source:{' '}
+                      <ExternalLink href={book.descriptionUrl}>
+                        {descriptionSourceLabels[book.descriptionSource]}
+                      </ExternalLink>
+                    </p>
+                  )}
+                </>
+              ) : (
+                <p className="text-sm text-charcoal/50">Looking up synopsis…</p>
+              )}
+            </div>
+          </>
+        )}
+
         {/* Notes */}
         {book.notes && (
           <>
@@ -168,6 +238,66 @@ function BookDetailContent({ book }: { book: Book }) {
             </div>
           </>
         )}
+
+        {/* Critic reviews */}
+        <div className="border-t border-soft-peach/50" />
+        <div className="p-8">
+          <h2 className="text-xs font-semibold uppercase tracking-wide text-charcoal/50 mb-3">
+            Critic Reviews
+          </h2>
+
+          {book.nytReviews && book.nytReviews.length > 0 && (
+            <div className="space-y-4 mb-4">
+              {book.nytReviews.map((review) => (
+                <div
+                  key={review.url}
+                  className="rounded-xl border border-soft-peach/50 bg-soft-peach/10 p-4"
+                >
+                  {review.byline && (
+                    <p className="text-sm font-semibold text-charcoal">
+                      Review by {review.byline}
+                      {review.publicationDt && (
+                        <span className="ml-2 font-normal text-charcoal/50">
+                          {formatDate(review.publicationDt)}
+                        </span>
+                      )}
+                    </p>
+                  )}
+                  {review.summary && (
+                    <p className="mt-1 text-charcoal leading-relaxed">{review.summary}</p>
+                  )}
+                  <p className="mt-2 text-sm">
+                    <ExternalLink href={review.url}>
+                      Read at The New York Times
+                    </ExternalLink>
+                  </p>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {book.wikipediaReception && (
+            <div className="mb-4">
+              <blockquote className="border-l-4 border-soft-peach pl-4 text-charcoal leading-relaxed italic">
+                {book.wikipediaReception}
+              </blockquote>
+              {book.wikipediaUrl && (
+                <p className="mt-2 text-xs text-charcoal/50">
+                  From <ExternalLink href={book.wikipediaUrl}>Wikipedia</ExternalLink>, CC BY-SA
+                </p>
+              )}
+            </div>
+          )}
+
+          <p className="text-sm text-charcoal/60">
+            {!book.wikipediaReception && (!book.nytReviews || book.nytReviews.length === 0)
+              ? 'No cached reviews found — try '
+              : 'More reviews: '}
+            <ExternalLink href={bookMarksUrl}>
+              search Book Marks for critic reviews ↗
+            </ExternalLink>
+          </p>
+        </div>
       </div>
     </div>
   );

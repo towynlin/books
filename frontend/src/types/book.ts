@@ -1,5 +1,13 @@
 export type BookStatus = 'read' | 'reading' | 'want_to_read';
 export type BookCategory = 'fiction' | 'nonfiction';
+export type DescriptionSource = 'openlibrary' | 'wikipedia';
+
+export interface NytReview {
+  url: string;
+  byline: string;
+  summary: string;
+  publicationDt: string | null;
+}
 
 export interface Book {
   id: string;
@@ -25,6 +33,15 @@ export interface Book {
   yearPublished: number | null;
   originalPublicationYear: number | null;
   averageRating: number | null;
+  description: string | null;
+  descriptionSource: DescriptionSource | null;
+  descriptionUrl: string | null;
+  descriptionFetchedAt: string | null;
+  wikipediaUrl: string | null;
+  wikipediaReception: string | null;
+  wikipediaFetchedAt: string | null;
+  nytReviews: NytReview[] | null;
+  nytFetchedAt: string | null;
 }
 
 export interface CreateBookInput {
