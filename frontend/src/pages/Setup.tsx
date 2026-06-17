@@ -74,10 +74,10 @@ export function Setup() {
 
   if (isValidating) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <div className="min-h-screen flex items-center justify-center bg-warm-cream">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Validating setup link...</p>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-terracotta mx-auto"></div>
+          <p className="mt-4 text-charcoal opacity-80">Validating setup link...</p>
         </div>
       </div>
     );
@@ -85,24 +85,24 @@ export function Setup() {
 
   if (error || !isValid) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
+      <div className="min-h-screen flex items-center justify-center bg-warm-cream py-12 px-4 sm:px-6 lg:px-8">
         <div className="max-w-md w-full space-y-8">
           <div className="text-center">
-            <div className="mx-auto h-12 w-12 rounded-full bg-red-100 flex items-center justify-center">
-              <svg className="h-6 w-6 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <div className="mx-auto h-12 w-12 rounded-full bg-soft-peach flex items-center justify-center">
+              <svg className="h-6 w-6 text-terracotta" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
               </svg>
             </div>
-            <h2 className="mt-6 text-3xl font-extrabold text-gray-900">
+            <h2 className="mt-6 text-3xl font-bold font-serif text-forest-green">
               Invalid Setup Link
             </h2>
-            <p className="mt-2 text-sm text-gray-600">
+            <p className="mt-2 text-sm text-charcoal/70">
               {error || 'This setup link is invalid or has expired.'}
             </p>
             <div className="mt-6">
               <button
                 onClick={() => navigate('/auth')}
-                className="text-blue-600 hover:text-blue-500 font-medium"
+                className="font-semibold text-terracotta hover:text-terracotta/80 transition-colors"
               >
                 Go to Login
               </button>
@@ -116,24 +116,24 @@ export function Setup() {
   const expiresInMinutes = Math.round((new Date(expiresAt).getTime() - Date.now()) / 60000);
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen flex items-center justify-center bg-warm-cream py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md w-full space-y-8">
         <div>
-          <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
+          <h2 className="mt-6 text-center text-3xl font-bold font-serif text-forest-green">
             Add This Device
           </h2>
-          <p className="mt-2 text-center text-sm text-gray-600">
+          <p className="mt-2 text-center text-sm text-charcoal/70">
             Set up passkey access for <span className="font-semibold">{username}</span>
           </p>
           {expiresInMinutes > 0 && (
-            <p className="mt-1 text-center text-xs text-gray-500">
+            <p className="mt-1 text-center text-xs text-charcoal/50">
               This link expires in {expiresInMinutes} minute{expiresInMinutes !== 1 ? 's' : ''}
             </p>
           )}
         </div>
 
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-          <p className="text-blue-800 text-sm">
+        <div className="bg-forest-green/10 border-2 border-forest-green rounded-2xl p-4">
+          <p className="text-forest-green text-sm font-medium">
             You'll create a passkey for this device. Use your device's biometric authentication (fingerprint, face, etc.)
             or security key to complete setup.
           </p>
@@ -141,26 +141,26 @@ export function Setup() {
 
         <form className="mt-8 space-y-6" onSubmit={handleSetup}>
           <div>
-            <label htmlFor="deviceName" className="block text-sm font-medium text-gray-700 mb-1">
+            <label htmlFor="deviceName" className="block text-sm font-medium text-charcoal mb-1">
               Device Name (Optional)
             </label>
             <input
               id="deviceName"
               type="text"
-              className="appearance-none rounded-md relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+              className="appearance-none rounded-full relative block w-full px-4 py-3 border-2 border-soft-peach placeholder-charcoal/40 text-charcoal bg-white focus:outline-none focus:ring-2 focus:ring-forest-green focus:border-forest-green sm:text-sm"
               placeholder="e.g., My iPhone, Work Laptop"
               value={deviceName}
               onChange={(e) => setDeviceName(e.target.value)}
               disabled={isRegistering}
             />
-            <p className="mt-1 text-sm text-gray-500">
+            <p className="mt-1 text-sm text-charcoal/50">
               Help yourself remember which device this is
             </p>
           </div>
 
           {error && (
-            <div className="rounded-md bg-red-50 p-4">
-              <div className="text-sm text-red-800">{error}</div>
+            <div className="rounded-2xl bg-soft-peach border-2 border-terracotta p-4">
+              <div className="text-sm text-terracotta font-medium">{error}</div>
             </div>
           )}
 
@@ -168,7 +168,7 @@ export function Setup() {
             <button
               type="submit"
               disabled={isRegistering}
-              className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-semibold rounded-full text-white bg-forest-green hover:bg-forest-green/90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-forest-green disabled:opacity-50 disabled:cursor-not-allowed transition-all"
             >
               {isRegistering ? (
                 <span className="flex items-center">
