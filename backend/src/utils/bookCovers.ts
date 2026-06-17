@@ -12,6 +12,13 @@
 
 export type CoverSize = 'S' | 'M' | 'L';
 
+const FETCH_TIMEOUT_MS = 8000;
+
+// Open Library API etiquette asks for a descriptive User-Agent
+const OPEN_LIBRARY_HEADERS = {
+  'User-Agent': 'books-tracker (self-hosted personal book tracker)',
+};
+
 /**
  * Generate a book cover URL from ISBN using the Open Library Covers API
  * Prefers ISBN-13 when available as it has better coverage
@@ -62,7 +69,8 @@ export async function fetchOpenLibraryCoverId(
 
   try {
     const response = await fetch(
-      `https://openlibrary.org/isbn/${isbnToUse}.json`
+      `https://openlibrary.org/isbn/${isbnToUse}.json`,
+      { headers: OPEN_LIBRARY_HEADERS, signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) }
     );
 
     if (!response.ok) {

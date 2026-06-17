@@ -130,7 +130,8 @@ describe('fetchOpenLibraryCoverId', () => {
     const coverId = await fetchOpenLibraryCoverId('9780140328721', null);
 
     expect(globalThis.fetch).toHaveBeenCalledWith(
-      'https://openlibrary.org/isbn/9780140328721.json'
+      'https://openlibrary.org/isbn/9780140328721.json',
+      expect.objectContaining({ headers: expect.objectContaining({ 'User-Agent': expect.any(String) }) })
     );
     expect(coverId).toBe(8739161);
 
@@ -146,7 +147,8 @@ describe('fetchOpenLibraryCoverId', () => {
     await fetchOpenLibraryCoverId('9780140328721', '0140328726');
 
     expect(globalThis.fetch).toHaveBeenCalledWith(
-      'https://openlibrary.org/isbn/9780140328721.json'
+      'https://openlibrary.org/isbn/9780140328721.json',
+      expect.objectContaining({ headers: expect.objectContaining({ 'User-Agent': expect.any(String) }) })
     );
 
     vi.restoreAllMocks();
@@ -161,7 +163,8 @@ describe('fetchOpenLibraryCoverId', () => {
     await fetchOpenLibraryCoverId(null, '0140328726');
 
     expect(globalThis.fetch).toHaveBeenCalledWith(
-      'https://openlibrary.org/isbn/0140328726.json'
+      'https://openlibrary.org/isbn/0140328726.json',
+      expect.objectContaining({ headers: expect.objectContaining({ 'User-Agent': expect.any(String) }) })
     );
 
     vi.restoreAllMocks();
