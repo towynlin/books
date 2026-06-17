@@ -52,7 +52,9 @@ router.get('/', async (req, res) => {
     searchUrl.searchParams.append('limit', '10');
     searchUrl.searchParams.append('fields', 'key,title,author_name,first_publish_year,isbn,publisher,number_of_pages_median,cover_i,cover_edition_key');
 
-    const response = await fetch(searchUrl.toString());
+    const response = await fetch(searchUrl.toString(), {
+      signal: AbortSignal.timeout(8000),
+    });
 
     if (!response.ok) {
       throw new Error(`Open Library API returned ${response.status}`);
@@ -103,7 +105,8 @@ router.get('/', async (req, res) => {
     });
   } catch (error) {
     console.error('Error searching books:', error);
-    res.status(500).json({ error: 'Failed to search books' });
+    const message = error instanceof Error ? error.message : 'Failed to search books';
+    res.status(500).json({ error: `Failed to search books: ${message}` });
   }
 });
 
