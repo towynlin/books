@@ -1,6 +1,7 @@
 import express from 'express';
 import { authenticate } from '../middleware/auth';
 import { getBookCoverUrl, getBookCoverUrlByCoverId } from '../utils/bookCovers';
+import { OPEN_LIBRARY_HEADERS } from '../utils/openLibraryHeaders';
 
 const router = express.Router();
 
@@ -53,6 +54,7 @@ router.get('/', async (req, res) => {
     searchUrl.searchParams.append('fields', 'key,title,author_name,first_publish_year,isbn,publisher,number_of_pages_median,cover_i,cover_edition_key');
 
     const response = await fetch(searchUrl.toString(), {
+      headers: OPEN_LIBRARY_HEADERS,
       signal: AbortSignal.timeout(8000),
     });
 

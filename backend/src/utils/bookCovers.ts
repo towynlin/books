@@ -10,7 +10,11 @@
  * a cover image indexed under its internal ID but not by ISBN.
  */
 
+import { OPEN_LIBRARY_HEADERS } from './openLibraryHeaders';
+
 export type CoverSize = 'S' | 'M' | 'L';
+
+const FETCH_TIMEOUT_MS = 8000;
 
 /**
  * Generate a book cover URL from ISBN using the Open Library Covers API
@@ -62,7 +66,8 @@ export async function fetchOpenLibraryCoverId(
 
   try {
     const response = await fetch(
-      `https://openlibrary.org/isbn/${isbnToUse}.json`
+      `https://openlibrary.org/isbn/${isbnToUse}.json`,
+      { headers: OPEN_LIBRARY_HEADERS, signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) }
     );
 
     if (!response.ok) {

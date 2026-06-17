@@ -6,6 +6,8 @@
  * Stays entirely within Open Library — no third-party services involved.
  */
 
+import { OPEN_LIBRARY_HEADERS } from './openLibraryHeaders';
+
 const FETCH_TIMEOUT_MS = 8000;
 
 interface OpenLibraryDescription {
@@ -70,7 +72,7 @@ export async function fetchOpenLibraryDescription(
 
   const editionResponse = await fetch(
     `https://openlibrary.org/isbn/${isbnToUse}.json`,
-    { signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) }
+    { headers: OPEN_LIBRARY_HEADERS, signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) }
   );
 
   if (editionResponse.status === 404) {
@@ -96,6 +98,7 @@ export async function fetchOpenLibraryDescription(
   }
 
   const workResponse = await fetch(`https://openlibrary.org${workKey}.json`, {
+    headers: OPEN_LIBRARY_HEADERS,
     signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
   });
 
