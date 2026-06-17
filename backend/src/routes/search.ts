@@ -58,7 +58,10 @@ router.get('/', async (req, res) => {
     searchUrl.searchParams.append('fields', 'key,title,author_name,first_publish_year,isbn,publisher,number_of_pages_median,cover_i,cover_edition_key');
 
     const response = await fetch(searchUrl.toString(), {
+<<<<<<< HEAD
       headers: OPEN_LIBRARY_HEADERS,
+=======
+>>>>>>> main
       signal: AbortSignal.timeout(8000),
     });
 
