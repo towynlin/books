@@ -12,6 +12,7 @@ export function BookSearchBar({ onBookAdded }: BookSearchBarProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [results, setResults] = useState<SearchResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
+  const [searchError, setSearchError] = useState<string | null>(null);
   const [selectedStatus, setSelectedStatus] = useState<BookStatus>('want_to_read');
   const [selectedCategory, setSelectedCategory] = useState<BookCategory | null>(null);
   const searchRef = useRef<HTMLDivElement>(null);
@@ -33,6 +34,7 @@ export function BookSearchBar({ onBookAdded }: BookSearchBarProps) {
   useEffect(() => {
     if (query.trim().length < 2) {
       setResults([]);
+      setSearchError(null);
       setIsOpen(false);
       return;
     }
@@ -44,12 +46,15 @@ export function BookSearchBar({ onBookAdded }: BookSearchBarProps) {
         const response = await searchAPI.searchBooks(query);
         if (isCurrent) {
           setResults(response.results);
+          setSearchError(null);
           setIsOpen(true);
         }
       } catch (error) {
         console.error('Search failed:', error);
         if (isCurrent) {
           setResults([]);
+          setSearchError(error instanceof Error ? error.message : 'Search failed');
+          setIsOpen(true);
         }
       } finally {
         if (isCurrent) {
@@ -178,7 +183,7 @@ export function BookSearchBar({ onBookAdded }: BookSearchBarProps) {
 
       {isOpen && query.trim().length >= 2 && results.length === 0 && !isSearching && (
         <div className="absolute z-50 w-full mt-2 bg-white border-2 border-gray-200 rounded-lg shadow-xl p-4 text-center text-gray-500">
-          No books found for "{query}"
+          {searchError ? `Search failed: ${searchError}` : `No books found for "${query}"`}
         </div>
       )}
     </div>
