@@ -37,21 +37,31 @@ export function BookSearchBar({ onBookAdded }: BookSearchBarProps) {
       return;
     }
 
+    let isCurrent = true;
     setIsSearching(true);
     const timeoutId = setTimeout(async () => {
       try {
         const response = await searchAPI.searchBooks(query);
-        setResults(response.results);
-        setIsOpen(true);
+        if (isCurrent) {
+          setResults(response.results);
+          setIsOpen(true);
+        }
       } catch (error) {
         console.error('Search failed:', error);
-        setResults([]);
+        if (isCurrent) {
+          setResults([]);
+        }
       } finally {
-        setIsSearching(false);
+        if (isCurrent) {
+          setIsSearching(false);
+        }
       }
     }, 300);
 
-    return () => clearTimeout(timeoutId);
+    return () => {
+      isCurrent = false;
+      clearTimeout(timeoutId);
+    };
   }, [query]);
 
   const addBookMutation = useMutation({
