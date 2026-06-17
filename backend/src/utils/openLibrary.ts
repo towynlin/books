@@ -6,12 +6,9 @@
  * Stays entirely within Open Library — no third-party services involved.
  */
 
-const FETCH_TIMEOUT_MS = 8000;
+import { OPEN_LIBRARY_HEADERS } from './openLibraryHeaders';
 
-// Open Library API etiquette asks for a descriptive User-Agent
-const OPEN_LIBRARY_HEADERS = {
-  'User-Agent': 'books-tracker (self-hosted personal book tracker)',
-};
+const FETCH_TIMEOUT_MS = 8000;
 
 interface OpenLibraryDescription {
   type?: string;

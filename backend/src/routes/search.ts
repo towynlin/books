@@ -1,16 +1,12 @@
 import express from 'express';
 import { authenticate } from '../middleware/auth';
 import { getBookCoverUrl, getBookCoverUrlByCoverId } from '../utils/bookCovers';
+import { OPEN_LIBRARY_HEADERS } from '../utils/openLibraryHeaders';
 
 const router = express.Router();
 
 // Apply authentication to all routes
 router.use(authenticate);
-
-// Open Library API etiquette asks for a descriptive User-Agent
-const OPEN_LIBRARY_HEADERS = {
-  'User-Agent': 'books-tracker (self-hosted personal book tracker)',
-};
 
 interface OpenLibraryDoc {
   key: string;
@@ -58,10 +54,7 @@ router.get('/', async (req, res) => {
     searchUrl.searchParams.append('fields', 'key,title,author_name,first_publish_year,isbn,publisher,number_of_pages_median,cover_i,cover_edition_key');
 
     const response = await fetch(searchUrl.toString(), {
-<<<<<<< HEAD
       headers: OPEN_LIBRARY_HEADERS,
-=======
->>>>>>> main
       signal: AbortSignal.timeout(8000),
     });
 

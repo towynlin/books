@@ -10,14 +10,11 @@
  * a cover image indexed under its internal ID but not by ISBN.
  */
 
+import { OPEN_LIBRARY_HEADERS } from './openLibraryHeaders';
+
 export type CoverSize = 'S' | 'M' | 'L';
 
 const FETCH_TIMEOUT_MS = 8000;
-
-// Open Library API etiquette asks for a descriptive User-Agent
-const OPEN_LIBRARY_HEADERS = {
-  'User-Agent': 'books-tracker (self-hosted personal book tracker)',
-};
 
 /**
  * Generate a book cover URL from ISBN using the Open Library Covers API
