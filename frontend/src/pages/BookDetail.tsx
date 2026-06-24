@@ -1,6 +1,6 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { useBook, useEnrichBook } from '../hooks/useBooks';
+import { useBook, useEnrichBook, useUpdateBook } from '../hooks/useBooks';
 import { getBookCoverUrl } from '../lib/bookCovers';
 import { Book, BookStatus } from '../types/book';
 
@@ -45,6 +45,64 @@ function formatDate(dateStr: string | null): string | null {
     month: 'long',
     day: 'numeric',
   });
+}
+
+function NotesEditor({ book }: { book: Book }) {
+  const updateBook = useUpdateBook();
+  const [notes, setNotes] = useState(book.notes ?? '');
+  const [isDirty, setIsDirty] = useState(false);
+
+  // Reset local state if a different book loads or the saved value changes elsewhere
+  useEffect(() => {
+    setNotes(book.notes ?? '');
+    setIsDirty(false);
+  }, [book.id, book.notes]);
+
+  const handleSave = () => {
+    if (!isDirty || updateBook.isPending) return;
+    const trimmed = notes.trim();
+    updateBook.mutate(
+      { id: book.id, data: { notes: trimmed === '' ? null : notes } },
+      { onSuccess: () => setIsDirty(false) }
+    );
+  };
+
+  return (
+    <div className="p-8">
+      <h2 className="text-xs font-semibold uppercase tracking-wide text-charcoal/50 mb-3">
+        Notes
+      </h2>
+      <textarea
+        value={notes}
+        onChange={(e) => {
+          setNotes(e.target.value);
+          setIsDirty(true);
+        }}
+        onBlur={handleSave}
+        placeholder="Add your notes about this book…"
+        rows={5}
+        className="w-full rounded-xl border border-soft-peach/50 p-3 text-charcoal placeholder:text-charcoal/40 focus:outline-none focus:ring-2 focus:ring-forest-green/30 resize-y"
+      />
+      <div className="mt-2 flex items-center gap-3">
+        <button
+          onClick={handleSave}
+          disabled={!isDirty || updateBook.isPending}
+          className="px-3 py-1.5 rounded-lg text-sm font-semibold bg-forest-green text-white disabled:opacity-40 disabled:cursor-not-allowed hover:bg-forest-green/90 transition-colors"
+        >
+          Save
+        </button>
+        <span className="text-xs text-charcoal/50">
+          {updateBook.isPending
+            ? 'Saving…'
+            : isDirty
+            ? 'Unsaved changes'
+            : updateBook.isSuccess
+            ? 'Saved'
+            : ''}
+        </span>
+      </div>
+    </div>
+  );
 }
 
 function ExternalLink({ href, children }: { href: string; children: React.ReactNode }) {
@@ -227,17 +285,8 @@ function BookDetailContent({ book }: { book: Book }) {
         )}
 
         {/* Notes */}
-        {book.notes && (
-          <>
-            <div className="border-t border-soft-peach/50" />
-            <div className="p-8">
-              <h2 className="text-xs font-semibold uppercase tracking-wide text-charcoal/50 mb-3">
-                Notes
-              </h2>
-              <p className="text-charcoal whitespace-pre-wrap leading-relaxed">{book.notes}</p>
-            </div>
-          </>
-        )}
+        <div className="border-t border-soft-peach/50" />
+        <NotesEditor book={book} />
 
         {/* Critic reviews */}
         <div className="border-t border-soft-peach/50" />
