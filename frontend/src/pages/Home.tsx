@@ -104,14 +104,19 @@ export function Home() {
 
   // Persist the current view in the URL (replacing history, not adding entries)
   // so browser and in-app back navigation land on the same tab/sort/filter.
+  // Only write when the params actually change: setSearchParams is not a stable
+  // reference, so an unconditional call re-triggers this effect every render and
+  // trips the browser's history.replaceState() rate limit.
   useEffect(() => {
     const params = new URLSearchParams();
     if (activeTab !== 'reading') params.set('tab', activeTab);
     if (currentSort) params.set('sort', currentSort);
     if (currentDir) params.set('dir', currentDir);
     if (filterText) params.set('q', filterText);
-    setSearchParams(params, { replace: true });
-  }, [activeTab, currentSort, currentDir, filterText, setSearchParams]);
+    if (params.toString() !== searchParams.toString()) {
+      setSearchParams(params, { replace: true });
+    }
+  }, [activeTab, currentSort, currentDir, filterText, searchParams, setSearchParams]);
 
   const { data: books, isLoading, error } = useBooks(
     activeTab === 'next_up'
