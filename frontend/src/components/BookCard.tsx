@@ -1,98 +1,21 @@
-import { useState, useRef, useEffect } from 'react';
-import { Book, BookStatus } from '../types/book';
-import { useAddToNextUp, useRemoveFromNextUp, useDeleteBook, useUpdateBook } from '../hooks/useBooks';
+import { useState } from 'react';
+import { Book } from '../types/book';
 import { getBookCoverUrl } from '../lib/bookCovers';
-import { StatusChangeModal } from './StatusChangeModal';
+import { BookActionsMenu } from './BookActionsMenu';
 
 interface BookCardProps {
   book: Book;
   onClick?: () => void;
 }
 
-const statusLabels: Record<BookStatus, string> = {
-  want_to_read: 'Want to Read',
-  reading: 'Currently Reading',
-  read: 'Read',
-};
-
 export function BookCard({ book, onClick }: BookCardProps) {
-  const addToNextUp = useAddToNextUp();
-  const removeFromNextUp = useRemoveFromNextUp();
-  const deleteBook = useDeleteBook();
-  const updateBook = useUpdateBook();
   const [menuOpen, setMenuOpen] = useState(false);
-  const [statusModalOpen, setStatusModalOpen] = useState(false);
-  const [targetStatus, setTargetStatus] = useState<BookStatus | null>(null);
-  const menuRef = useRef<HTMLDivElement>(null);
-
-  // Close menu when clicking outside
-  useEffect(() => {
-    if (!menuOpen) return;
-    const handleClickOutside = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-        setMenuOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [menuOpen]);
 
   const categoryBadgeColor = book.category === 'fiction'
     ? 'bg-soft-peach text-terracotta'
     : book.category === 'nonfiction'
     ? 'bg-forest-green/10 text-forest-green'
     : 'bg-soft-peach text-charcoal';
-
-  const handleAddToNextUp = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    setMenuOpen(false);
-    addToNextUp.mutate(book.id);
-  };
-
-  const handleRemoveFromNextUp = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    setMenuOpen(false);
-    removeFromNextUp.mutate(book.id);
-  };
-
-  const handleMenuToggle = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    setMenuOpen(!menuOpen);
-  };
-
-  const handleDelete = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    setMenuOpen(false);
-    if (confirm('Are you sure you want to delete this book?')) {
-      deleteBook.mutate(book.id);
-    }
-  };
-
-  const handleSetCategory = (e: React.MouseEvent, category: 'fiction' | 'nonfiction') => {
-    e.stopPropagation();
-    setMenuOpen(false);
-    updateBook.mutate({ id: book.id, data: { category } });
-  };
-
-  const handleStatusChange = (e: React.MouseEvent, status: BookStatus) => {
-    e.stopPropagation();
-    setMenuOpen(false);
-    setTargetStatus(status);
-    setStatusModalOpen(true);
-  };
-
-  const handleCloseStatusModal = () => {
-    setStatusModalOpen(false);
-    setTargetStatus(null);
-  };
-
-  // Get available status transitions based on current status
-  const getAvailableStatusTransitions = (): BookStatus[] => {
-    const allStatuses: BookStatus[] = ['want_to_read', 'reading', 'read'];
-    return allStatuses.filter((s) => s !== book.status);
-  };
-
-  const isInNextUp = book.nextUpOrder !== null && book.nextUpOrder !== undefined;
 
   // Use stored coverUrl, or fall back to generating from ISBN
   const coverUrl = book.coverUrl || getBookCoverUrl(book.isbn13, book.isbn);
@@ -103,94 +26,8 @@ export function BookCard({ book, onClick }: BookCardProps) {
       className={`bg-white rounded-2xl shadow-md hover:shadow-xl transition-all p-4 cursor-pointer relative hover:-translate-y-1 border border-soft-peach/20${menuOpen ? ' z-10' : ''}`}
     >
       {/* Three-dots menu */}
-      <div ref={menuRef} className="absolute top-2 right-2">
-        <button
-          onClick={handleMenuToggle}
-          className="p-1 text-charcoal/40 hover:text-charcoal rounded hover:bg-soft-peach/50"
-          aria-label="Book options"
-        >
-          <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-            <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" />
-          </svg>
-        </button>
-        {menuOpen && (
-          <div className="absolute right-0 mt-1 w-44 bg-white rounded-xl shadow-lg border-2 border-soft-peach py-1 z-10">
-            {/* Status change options */}
-            <div className="px-3 py-1.5 text-xs font-semibold text-charcoal/50 uppercase tracking-wide">
-              Move to
-            </div>
-            {getAvailableStatusTransitions().map((status) => (
-              <button
-                key={status}
-                onClick={(e) => handleStatusChange(e, status)}
-                className="w-full px-4 py-2 text-left text-sm text-charcoal hover:bg-soft-peach/30 flex items-center gap-2"
-              >
-                {status === 'read' && (
-                  <span className="text-terracotta">★</span>
-                )}
-                {status === 'reading' && (
-                  <span className="text-forest-green">📖</span>
-                )}
-                {status === 'want_to_read' && (
-                  <span className="text-charcoal/60">📚</span>
-                )}
-                {statusLabels[status]}
-              </button>
-            ))}
-
-            <div className="my-1 border-t border-soft-peach" />
-
-            {/* Category options */}
-            {book.category !== 'fiction' && (
-              <button
-                onClick={(e) => handleSetCategory(e, 'fiction')}
-                className="w-full px-4 py-2 text-left text-sm text-charcoal hover:bg-soft-peach/30"
-              >
-                Mark as Fiction
-              </button>
-            )}
-            {book.category !== 'nonfiction' && (
-              <button
-                onClick={(e) => handleSetCategory(e, 'nonfiction')}
-                className="w-full px-4 py-2 text-left text-sm text-charcoal hover:bg-soft-peach/30"
-              >
-                Mark as Nonfiction
-              </button>
-            )}
-
-            {book.status !== 'reading' && (
-              <>
-                <div className="my-1 border-t border-soft-peach" />
-                {isInNextUp ? (
-                  <button
-                    onClick={handleRemoveFromNextUp}
-                    disabled={removeFromNextUp.isPending}
-                    className="w-full px-4 py-2 text-left text-sm text-charcoal hover:bg-soft-peach/30 disabled:opacity-50"
-                  >
-                    Remove from Next Up
-                  </button>
-                ) : (
-                  <button
-                    onClick={handleAddToNextUp}
-                    disabled={addToNextUp.isPending}
-                    className="w-full px-4 py-2 text-left text-sm text-charcoal hover:bg-soft-peach/30 disabled:opacity-50"
-                  >
-                    Add to Next Up
-                  </button>
-                )}
-              </>
-            )}
-
-            <div className="my-1 border-t border-soft-peach" />
-
-            <button
-              onClick={handleDelete}
-              className="w-full px-4 py-2 text-left text-sm text-terracotta hover:bg-soft-peach"
-            >
-              Delete
-            </button>
-          </div>
-        )}
+      <div className="absolute top-2 right-2" onClick={(e) => e.stopPropagation()}>
+        <BookActionsMenu book={book} onMenuOpenChange={setMenuOpen} />
       </div>
 
       <div className="flex gap-4">
@@ -249,16 +86,6 @@ export function BookCard({ book, onClick }: BookCardProps) {
         <div className="mt-3 text-sm text-charcoal/80 line-clamp-2">
           {book.notes}
         </div>
-      )}
-
-      {/* Status Change Modal */}
-      {targetStatus && (
-        <StatusChangeModal
-          book={book}
-          targetStatus={targetStatus}
-          isOpen={statusModalOpen}
-          onClose={handleCloseStatusModal}
-        />
       )}
     </div>
   );
