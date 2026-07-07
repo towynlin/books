@@ -1,5 +1,5 @@
-import { useState, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useMemo, useEffect } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useBooks } from '../hooks/useBooks';
 import { BookCard } from '../components/BookCard';
 import { DraggableBookList } from '../components/DraggableBookList';
@@ -47,17 +47,50 @@ const sortOptions: Record<string, { id: SortOption; label: string }[]> = {
   ],
 };
 
+const validTabs: ViewTab[] = ['reading', 'read', 'want_to_read', 'next_up'];
+
+function isViewTab(value: string | null): value is ViewTab {
+  return value !== null && (validTabs as string[]).includes(value);
+}
+
 export function Home() {
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState<ViewTab>('reading');
-  const [sortBy, setSortBy] = useState<Record<string, SortOption>>({
-    want_to_read: 'date_added',
-    read: 'date_finished',
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  // Restore the last viewed tab, sort, and filter from the URL so that
+  // navigating into a book and back returns to the same view.
+  const tabParam = searchParams.get('tab');
+  const [activeTab, setActiveTab] = useState<ViewTab>(
+    isViewTab(tabParam) ? tabParam : 'reading'
+  );
+  const [sortBy, setSortBy] = useState<Record<string, SortOption>>(() => {
+    const base: Record<string, SortOption> = {
+      want_to_read: 'date_added',
+      read: 'date_finished',
+    };
+    const sortParam = searchParams.get('sort');
+    if (
+      isViewTab(tabParam) &&
+      sortOptions[tabParam] &&
+      sortParam &&
+      sortOptions[tabParam].some((o) => o.id === sortParam)
+    ) {
+      base[tabParam] = sortParam as SortOption;
+    }
+    return base;
   });
-  const [sortDir, setSortDir] = useState<Record<string, SortDir>>({
-    want_to_read: 'desc',
-    read: 'desc',
+  const [sortDir, setSortDir] = useState<Record<string, SortDir>>(() => {
+    const base: Record<string, SortDir> = {
+      want_to_read: 'desc',
+      read: 'desc',
+    };
+    const dirParam = searchParams.get('dir');
+    if (isViewTab(tabParam) && sortOptions[tabParam] && (dirParam === 'asc' || dirParam === 'desc')) {
+      base[tabParam] = dirParam;
+    }
+    return base;
   });
+  const [filterText, setFilterText] = useState(() => searchParams.get('q') ?? '');
 
   const statusMap: Record<ViewTab, BookStatus | undefined> = {
     reading: 'reading',
@@ -69,7 +102,16 @@ export function Home() {
   const currentSort = sortOptions[activeTab] ? sortBy[activeTab] : undefined;
   const currentDir = sortOptions[activeTab] ? sortDir[activeTab] : undefined;
 
-  const [filterText, setFilterText] = useState('');
+  // Persist the current view in the URL (replacing history, not adding entries)
+  // so browser and in-app back navigation land on the same tab/sort/filter.
+  useEffect(() => {
+    const params = new URLSearchParams();
+    if (activeTab !== 'reading') params.set('tab', activeTab);
+    if (currentSort) params.set('sort', currentSort);
+    if (currentDir) params.set('dir', currentDir);
+    if (filterText) params.set('q', filterText);
+    setSearchParams(params, { replace: true });
+  }, [activeTab, currentSort, currentDir, filterText, setSearchParams]);
 
   const { data: books, isLoading, error } = useBooks(
     activeTab === 'next_up'
