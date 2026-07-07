@@ -6,8 +6,6 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 A self-hosted, single-user-first book tracking app (statuses: read / reading / want_to_read, fiction vs. nonfiction categorization, drag-sortable "Next Up" lists per category, Goodreads CSV import). Two npm packages in one repo — `backend/` and `frontend/` — with no root package.json workspace; run npm commands inside each directory.
 
-Note: `SETUP.md` is partially stale (it mentions Prisma; the backend actually uses raw SQL via `pg`). Trust the code and this file over SETUP.md.
-
 ## Commands
 
 All backend commands run in `backend/`, frontend commands in `frontend/`.
