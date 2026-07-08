@@ -7,14 +7,19 @@ on:
     types: [completed]
     branches:
       - main
+  # Manual escape hatch: redeploy main's head without pushing a commit,
+  # e.g. after a deploy failed for a transient reason (DB waking up, etc.)
+  workflow_dispatch:
 jobs:
   deploy:
     name: Deploy app
     permissions:
       contents: read
     runs-on: ubuntu-latest
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
     concurrency: deploy-group    # optional: ensure only one action runs at a time
+    env:
+      DEPLOY_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
     steps:
       - uses: actions/checkout@v6
       - name: Login to Docker Hardened Images registry
@@ -31,9 +36,9 @@ jobs:
           password: ${{ secrets.FLY_API_TOKEN }}
       - name: Build and push image
         run: |
-          docker build -t registry.fly.io/books-tracker:${{ github.event.workflow_run.head_sha }} .
-          docker push registry.fly.io/books-tracker:${{ github.event.workflow_run.head_sha }}
+          docker build -t "registry.fly.io/books-tracker:$DEPLOY_SHA" .
+          docker push "registry.fly.io/books-tracker:$DEPLOY_SHA"
       - uses: superfly/flyctl-actions/setup-flyctl@master
-      - run: flyctl deploy --image registry.fly.io/books-tracker:${{ github.event.workflow_run.head_sha }}
+      - run: flyctl deploy --image "registry.fly.io/books-tracker:$DEPLOY_SHA"
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
