@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { startRegistration } from '@simplewebauthn/browser';
 import { authAPI } from '../lib/api';
+import { describeWebAuthnError } from '../lib/webauthnErrors';
 
 interface Passkey {
   id: string;
@@ -60,7 +61,7 @@ export function Passkeys() {
       await loadPasskeys();
     } catch (err) {
       console.error('Failed to add passkey:', err);
-      setError(err instanceof Error ? err.message : 'Failed to add passkey');
+      setError(describeWebAuthnError(err, 'Failed to add passkey'));
     } finally {
       setIsAdding(false);
     }

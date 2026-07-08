@@ -22,6 +22,20 @@ async function initDatabase() {
 
     if (result.rows[0].exists) {
       console.log('Database tables already exist. Skipping initialization.');
+      // Purely additive tables can still be created idempotently so a deploy
+      // that introduces them never races a hand-applied migration.
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS webauthn_challenges (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+          scope TEXT NOT NULL,
+          challenge TEXT NOT NULL,
+          expires_at TIMESTAMPTZ NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_webauthn_challenges_scope_challenge ON webauthn_challenges(scope, challenge);
+        CREATE INDEX IF NOT EXISTS idx_webauthn_challenges_expires_at ON webauthn_challenges(expires_at);
+      `);
+      console.log('Ensured webauthn_challenges table exists.');
       return;
     }
 

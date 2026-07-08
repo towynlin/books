@@ -10,6 +10,18 @@ const API_URL = (import.meta as any).env?.VITE_API_URL !== undefined
   ? (import.meta as any).env.VITE_API_URL
   : 'http://localhost:3000';
 
+// Error carrying the HTTP status so callers can tell a definitive rejection
+// (4xx) apart from a transient failure (network error, 429, 5xx)
+export class APIError extends Error {
+  status: number;
+
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = 'APIError';
+    this.status = status;
+  }
+}
+
 // Get auth token from localStorage
 function getAuthToken(): string | null {
   return localStorage.getItem('authToken');
@@ -53,7 +65,10 @@ async function fetchAPI<T>(endpoint: string, options?: RequestInit): Promise<T> 
 
   if (!response.ok) {
     const error = await response.json().catch(() => ({ error: 'Request failed' }));
-    throw new Error(error.error || `Request failed with status ${response.status}`);
+    throw new APIError(
+      error.error || `Request failed with status ${response.status}`,
+      response.status
+    );
   }
 
   // 204 No Content has no body to parse
@@ -219,10 +234,12 @@ export interface AuthResponse {
 }
 
 export const authAPI = {
-  // Check if a user exists and if registration requires invitation
+  // Check if a user exists and if registration requires invitation.
+  // Uses fetchAPI so a failed request (e.g. rate limited) throws instead of
+  // silently resolving to a body with no hasUser field, which the auth page
+  // would misread as "no account exists yet".
   checkStatus: async (): Promise<{ hasUser: boolean; requiresInvitation: boolean }> => {
-    const response = await fetch(`${API_URL}/api/auth/status`);
-    return response.json();
+    return fetchAPI<{ hasUser: boolean; requiresInvitation: boolean }>('/api/auth/status');
   },
 
   // Get registration options

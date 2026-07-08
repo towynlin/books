@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { startRegistration, startAuthentication } from '@simplewebauthn/browser';
 import { authAPI } from '../lib/api';
+import { describeWebAuthnError } from '../lib/webauthnErrors';
 import { useAuth } from '../contexts/AuthContext';
 
 export function Auth() {
@@ -38,6 +39,12 @@ export function Auth() {
         }
       } catch (err) {
         console.error('Failed to check user status:', err);
+        // If the status check fails (offline, rate limited, server error),
+        // assume an account exists so an existing user is shown the sign-in
+        // form rather than the registration form.
+        setHasUser(true);
+        setRequiresInvitation(true);
+        setError('Could not reach the server to check account status. Signing in may still work.');
       } finally {
         setCheckingStatus(false);
       }
@@ -76,7 +83,7 @@ export function Auth() {
       }
     } catch (err) {
       console.error('Registration failed:', err);
-      setError(err instanceof Error ? err.message : 'Registration failed');
+      setError(describeWebAuthnError(err, 'Registration failed'));
     } finally {
       setIsLoading(false);
     }
@@ -122,7 +129,7 @@ export function Auth() {
       }
     } catch (err) {
       console.error('Login failed:', err);
-      setError(err instanceof Error ? err.message : 'Login failed');
+      setError(describeWebAuthnError(err, 'Login failed'));
     } finally {
       setIsLoading(false);
     }

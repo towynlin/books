@@ -1,6 +1,7 @@
 -- Books tracking database schema
 
 -- Drop existing tables if they exist
+DROP TABLE IF EXISTS webauthn_challenges CASCADE;
 DROP TABLE IF EXISTS passkey_credentials CASCADE;
 DROP TABLE IF EXISTS recovery_codes CASCADE;
 DROP TABLE IF EXISTS setup_tokens CASCADE;
@@ -93,6 +94,17 @@ CREATE TABLE passkey_credentials (
   transports TEXT[]
 );
 
+-- Short-lived, single-use WebAuthn ceremony challenges.
+-- Stored in the database (not process memory) so passkey ceremonies survive
+-- server restarts/deploys and work across multiple instances.
+CREATE TABLE webauthn_challenges (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  scope TEXT NOT NULL,        -- e.g. 'login:<username>', 'registration:<username>', 'add:<user_id>', 'setup:<token>'
+  challenge TEXT NOT NULL,    -- base64url challenge exactly as sent in the ceremony options
+  expires_at TIMESTAMPTZ NOT NULL
+);
+
 -- Setup tokens table for time-limited device setup links
 CREATE TABLE setup_tokens (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -132,6 +144,8 @@ CREATE INDEX idx_books_category ON books(category);
 CREATE INDEX idx_books_next_up_order ON books(next_up_order) WHERE next_up_order IS NOT NULL;
 CREATE INDEX idx_books_user_id ON books(user_id);
 CREATE INDEX idx_passkey_credentials_user_id ON passkey_credentials(user_id);
+CREATE INDEX idx_webauthn_challenges_scope_challenge ON webauthn_challenges(scope, challenge);
+CREATE INDEX idx_webauthn_challenges_expires_at ON webauthn_challenges(expires_at);
 CREATE INDEX idx_setup_tokens_token ON setup_tokens(token);
 CREATE INDEX idx_setup_tokens_user_id ON setup_tokens(user_id);
 CREATE INDEX idx_recovery_codes_code ON recovery_codes(code);
