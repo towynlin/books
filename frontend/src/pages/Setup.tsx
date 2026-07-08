@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { startRegistration } from '@simplewebauthn/browser';
 import { authAPI } from '../lib/api';
+import { describeWebAuthnError } from '../lib/webauthnErrors';
 import { useAuth } from '../contexts/AuthContext';
 
 export function Setup() {
@@ -66,7 +67,7 @@ export function Setup() {
       navigate('/');
     } catch (err) {
       console.error('Setup failed:', err);
-      setError(err instanceof Error ? err.message : 'Setup failed');
+      setError(describeWebAuthnError(err, 'Setup failed'));
     } finally {
       setIsRegistering(false);
     }

@@ -53,13 +53,19 @@ app.use(cors({
 app.use(express.json({ limit: '100kb' }));
 app.use(express.urlencoded({ extended: true }));
 
-// Rate limiting — stricter for auth, lighter for general API
-const authLimiter = rateLimit({
+// Rate limiting. Recovery-code login is the only guessable credential, so
+// only failed attempts there get a strict limit. Everything else under
+// /api/auth shares the general API limit: the SPA hits verify-token on every
+// page load and each passkey ceremony takes two requests, so a strict
+// blanket limit intermittently breaks login with 429s. Passkey ceremonies
+// themselves are protected by public-key cryptography, not by rate limits.
+const recoveryLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 20,                   // 20 requests per window per IP
+  max: 10,                   // 10 failed attempts per window per IP
+  skipSuccessfulRequests: true,
   standardHeaders: true,
   legacyHeaders: false,
-  message: { error: 'Too many requests, please try again later' },
+  message: { error: 'Too many attempts, please try again later' },
 });
 const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -70,7 +76,8 @@ const apiLimiter = rateLimit({
 });
 
 // Routes
-app.use('/api/auth', authLimiter, authRoutes);
+app.use('/api/auth/login/recovery', recoveryLimiter);
+app.use('/api/auth', apiLimiter, authRoutes);
 app.use('/api/books', apiLimiter, bookRoutes);
 app.use('/api/import', apiLimiter, importRoutes);
 app.use('/api/search', apiLimiter, searchRoutes);

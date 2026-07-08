@@ -14,6 +14,7 @@ import type {
 } from '@simplewebauthn/server';
 import { query, getClient } from '../db';
 import { authenticate, AuthRequest } from '../middleware/auth';
+import { createChallenge, consumeChallenge, extractChallenge } from '../utils/challengeStore';
 
 // Helper to validate invitation tokens
 // Returns { valid: true, id: string } or { valid: false, error: string }
@@ -52,34 +53,15 @@ if (!jwtSecret) {
   throw new Error('JWT_SECRET environment variable is required');
 }
 
-// Temporary storage for challenges with TTL (5 minutes)
-const CHALLENGE_TTL_MS = 5 * 60 * 1000;
-const challenges = new Map<string, { challenge: string; createdAt: number }>();
+// Challenges are persisted in Postgres (see utils/challengeStore.ts) so
+// ceremonies survive restarts/deploys and concurrent attempts don't clobber
+// each other. Each verify handler extracts the challenge the authenticator
+// echoed back in clientDataJSON and consumes exactly that row.
 
-// Clean up expired challenges every 60 seconds
-setInterval(() => {
-  const now = Date.now();
-  for (const [key, value] of challenges) {
-    if (now - value.createdAt > CHALLENGE_TTL_MS) {
-      challenges.delete(key);
-    }
-  }
-}, 60 * 1000);
-
-// Helper to set/get challenges with TTL
-function setChallenge(key: string, challenge: string): void {
-  challenges.set(key, { challenge, createdAt: Date.now() });
-}
-
-function getChallenge(key: string): string | undefined {
-  const entry = challenges.get(key);
-  if (!entry) return undefined;
-  if (Date.now() - entry.createdAt > CHALLENGE_TTL_MS) {
-    challenges.delete(key);
-    return undefined;
-  }
-  return entry.challenge;
-}
+// WebAuthn ceremony timeout. Cross-device flows (scanning a QR code with a
+// phone) routinely take longer than the 60s library default; keep this in
+// sync with the challenge TTL in utils/challengeStore.ts.
+const CEREMONY_TIMEOUT_MS = 5 * 60 * 1000;
 
 // POST /api/auth/register/options - Get registration options
 router.post('/register/options', async (req, res) => {
@@ -122,6 +104,7 @@ router.post('/register/options', async (req, res) => {
       rpID,
       userName: username,
       attestationType: 'none',
+      timeout: CEREMONY_TIMEOUT_MS,
       authenticatorSelection: {
         residentKey: 'preferred',
         userVerification: 'preferred',
@@ -131,9 +114,7 @@ router.post('/register/options', async (req, res) => {
       supportedAlgorithmIDs: [-7, -257], // ES256 and RS256
     });
 
-    // Store challenge temporarily (include invitation token in key if present)
-    const challengeKey = invitationToken ? `${username}:${invitationToken}` : username;
-    setChallenge(challengeKey, options.challenge);
+    await createChallenge(`registration:${username}`, options.challenge);
 
     res.json(options);
   } catch (error) {
@@ -174,11 +155,10 @@ router.post('/register/verify', async (req, res) => {
       invitationId = validation.id;
     }
 
-    // Get stored challenge (check both with and without invitation token)
-    const challengeKey = invitationToken ? `${username}:${invitationToken}` : username;
-    const expectedChallenge = getChallenge(challengeKey);
-    if (!expectedChallenge) {
-      return res.status(400).json({ error: 'No registration in progress' });
+    // Consume the challenge this credential was created against (single-use)
+    const expectedChallenge = extractChallenge(credential);
+    if (!expectedChallenge || !(await consumeChallenge(`registration:${username}`, expectedChallenge))) {
+      return res.status(400).json({ error: 'This registration attempt has expired. Please try again.' });
     }
 
     // Verify the credential
@@ -259,9 +239,6 @@ router.post('/register/verify', async (req, res) => {
       client.release();
     }
 
-    // Clean up challenge (after successful transaction)
-    challenges.delete(challengeKey);
-
     // Generate JWT
     const token = jwt.sign(
       { userId: user.id, username: user.username },
@@ -278,7 +255,14 @@ router.post('/register/verify', async (req, res) => {
       },
       recoveryCodes,
     });
-  } catch (error) {
+  } catch (error: any) {
+    // Unique violations mean a concurrent registration won the race
+    if (error?.code === '23505') {
+      const message = error?.constraint === 'passkey_credentials_credential_id_key'
+        ? 'This passkey is already registered'
+        : 'Username already exists';
+      return res.status(400).json({ error: message });
+    }
     console.error('Error verifying registration:', error);
     res.status(500).json({ error: 'Failed to verify registration' });
   }
@@ -320,10 +304,11 @@ router.post('/login/options', async (req, res) => {
       rpID,
       allowCredentials,
       userVerification: 'preferred',
+      timeout: CEREMONY_TIMEOUT_MS,
     });
 
     // Store challenge (will fail at verify step for non-existent users)
-    setChallenge(username, options.challenge);
+    await createChallenge(`login:${username}`, options.challenge);
 
     res.json(options);
   } catch (error) {
@@ -344,10 +329,10 @@ router.post('/login/verify', async (req, res) => {
       return res.status(400).json({ error: 'Username and credential are required' });
     }
 
-    // Get stored challenge (returns undefined if expired)
-    const expectedChallenge = getChallenge(username);
-    if (!expectedChallenge) {
-      return res.status(400).json({ error: 'No login in progress' });
+    // Consume the challenge this assertion was created against (single-use)
+    const expectedChallenge = extractChallenge(credential);
+    if (!expectedChallenge || !(await consumeChallenge(`login:${username}`, expectedChallenge))) {
+      return res.status(400).json({ error: 'This sign-in attempt has expired. Please try again.' });
     }
 
     // Find user and credential — use generic error to prevent enumeration
@@ -397,9 +382,6 @@ router.post('/login/verify', async (req, res) => {
       'UPDATE passkey_credentials SET counter = $1 WHERE id = $2',
       [verification.authenticationInfo.newCounter, dbCredential.id]
     );
-
-    // Clean up challenge
-    challenges.delete(username);
 
     // Generate JWT
     const token = jwt.sign(
@@ -593,6 +575,7 @@ router.post('/passkeys/add-options', authenticate, async (req: AuthRequest, res)
         id: cred.credential_id,
         type: 'public-key' as const,
       })),
+      timeout: CEREMONY_TIMEOUT_MS,
       authenticatorSelection: {
         residentKey: 'preferred',
         userVerification: 'preferred',
@@ -601,8 +584,8 @@ router.post('/passkeys/add-options', authenticate, async (req: AuthRequest, res)
       supportedAlgorithmIDs: [-7, -257],
     });
 
-    // Store challenge with user ID instead of username for add operations
-    setChallenge(`add-${userId}`, options.challenge);
+    // Scope challenge by user ID for add operations
+    await createChallenge(`add:${userId}`, options.challenge);
 
     res.json(options);
   } catch (error) {
@@ -628,10 +611,10 @@ router.post('/passkeys/add-verify', authenticate, async (req: AuthRequest, res) 
       return res.status(400).json({ error: 'Credential is required' });
     }
 
-    // Get stored challenge (returns undefined if expired)
-    const expectedChallenge = getChallenge(`add-${userId}`);
-    if (!expectedChallenge) {
-      return res.status(400).json({ error: 'No add passkey operation in progress' });
+    // Consume the challenge this credential was created against (single-use)
+    const expectedChallenge = extractChallenge(credential);
+    if (!expectedChallenge || !(await consumeChallenge(`add:${userId}`, expectedChallenge))) {
+      return res.status(400).json({ error: 'This add-passkey attempt has expired. Please try again.' });
     }
 
     // Verify the credential
@@ -665,9 +648,6 @@ router.post('/passkeys/add-verify', authenticate, async (req: AuthRequest, res) 
         transports,
       ]
     );
-
-    // Clean up challenge
-    challenges.delete(`add-${userId}`);
 
     res.json({ success: true, message: 'Passkey added successfully' });
   } catch (error) {
@@ -884,6 +864,7 @@ router.post('/setup-token/register-options', async (req, res) => {
         id: cred.credential_id,
         type: 'public-key' as const,
       })),
+      timeout: CEREMONY_TIMEOUT_MS,
       authenticatorSelection: {
         residentKey: 'preferred',
         userVerification: 'preferred',
@@ -892,8 +873,8 @@ router.post('/setup-token/register-options', async (req, res) => {
       supportedAlgorithmIDs: [-7, -257],
     });
 
-    // Store challenge with token
-    setChallenge(`setup-${token}`, options.challenge);
+    // Scope challenge by the setup token
+    await createChallenge(`setup:${token}`, options.challenge);
 
     res.json(options);
   } catch (error) {
@@ -1005,10 +986,10 @@ router.post('/setup-token/register-verify', async (req, res) => {
       return res.status(400).json({ error: 'This setup token has expired' });
     }
 
-    // Get stored challenge (returns undefined if expired)
-    const expectedChallenge = getChallenge(`setup-${token}`);
-    if (!expectedChallenge) {
-      return res.status(400).json({ error: 'No registration in progress' });
+    // Consume the challenge this credential was created against (single-use)
+    const expectedChallenge = extractChallenge(credential);
+    if (!expectedChallenge || !(await consumeChallenge(`setup:${token}`, expectedChallenge))) {
+      return res.status(400).json({ error: 'This setup attempt has expired. Please try again.' });
     }
 
     // Verify the credential
@@ -1026,27 +1007,39 @@ router.post('/setup-token/register-verify', async (req, res) => {
     // In v10+, credentialID is a base64url string (not Uint8Array)
     const { id: credentialID, publicKey: credentialPublicKey, counter } = verification.registrationInfo.credential;
 
-    // Add credential to database
-    // credentialID is already a base64url string, store it directly
-    await query(
-      'INSERT INTO passkey_credentials (user_id, credential_id, public_key, counter, device_name) VALUES ($1, $2, $3, $4, $5)',
-      [
-        tokenData.user_id,
-        credentialID,
-        Buffer.from(credentialPublicKey),
-        counter,
-        deviceName || null,
-      ]
-    );
+    // Get transports from the response so future login options can hint the
+    // browser how to reach this authenticator
+    const transports = credential.response.transports || [];
 
-    // Mark token as used
-    await query(
-      'UPDATE setup_tokens SET used = TRUE, used_at = NOW() WHERE id = $1',
-      [tokenData.id]
-    );
+    // Add credential and consume the setup token atomically
+    const client = await getClient();
+    try {
+      await client.query('BEGIN');
 
-    // Clean up challenge
-    challenges.delete(`setup-${token}`);
+      await client.query(
+        'INSERT INTO passkey_credentials (user_id, credential_id, public_key, counter, device_name, transports) VALUES ($1, $2, $3, $4, $5, $6)',
+        [
+          tokenData.user_id,
+          credentialID,
+          Buffer.from(credentialPublicKey),
+          counter,
+          deviceName || null,
+          transports,
+        ]
+      );
+
+      await client.query(
+        'UPDATE setup_tokens SET used = TRUE, used_at = NOW() WHERE id = $1',
+        [tokenData.id]
+      );
+
+      await client.query('COMMIT');
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
 
     // Generate JWT for auto-login
     const jwtToken = jwt.sign(

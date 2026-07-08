@@ -1,5 +1,17 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { authAPI, User } from '../lib/api';
+import { authAPI, APIError, User } from '../lib/api';
+
+// Decode a JWT payload locally (no signature check — the server remains the
+// authority; this only lets us tell "token is expired garbage" apart from
+// "server was unreachable" without a network round trip)
+function decodeJwtPayload(token: string): { userId?: string; username?: string; exp?: number } | null {
+  try {
+    const payload = token.split('.')[1];
+    return JSON.parse(atob(payload.replace(/-/g, '+').replace(/_/g, '/')));
+  } catch {
+    return null;
+  }
+}
 
 interface AuthContextType {
   user: User | null;
@@ -22,17 +34,42 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const checkAuth = async () => {
       const storedToken = localStorage.getItem('authToken');
       if (storedToken) {
-        try {
-          const response = await authAPI.verifyToken(storedToken);
-          if (response.valid) {
-            setToken(storedToken);
-            setUser(response.user);
-          } else {
-            localStorage.removeItem('authToken');
-          }
-        } catch (error) {
-          console.error('Token verification failed:', error);
+        const payload = decodeJwtPayload(storedToken);
+        const isLocallyValid =
+          !!payload?.userId &&
+          !!payload?.username &&
+          !!payload?.exp &&
+          payload.exp * 1000 > Date.now();
+
+        if (!isLocallyValid) {
           localStorage.removeItem('authToken');
+        } else {
+          try {
+            const response = await authAPI.verifyToken(storedToken);
+            if (response.valid) {
+              setToken(storedToken);
+              setUser(response.user);
+            } else {
+              localStorage.removeItem('authToken');
+            }
+          } catch (error) {
+            const definitivelyRejected =
+              error instanceof APIError &&
+              error.status >= 400 &&
+              error.status < 500 &&
+              error.status !== 429;
+
+            if (definitivelyRejected) {
+              localStorage.removeItem('authToken');
+            } else {
+              // Transient failure (offline, rate limited, server error):
+              // keep the locally valid token instead of logging the user
+              // out. If it's actually bad, the next API call will 401.
+              console.error('Token verification unavailable, using local token:', error);
+              setToken(storedToken);
+              setUser({ id: payload.userId!, username: payload.username! });
+            }
+          }
         }
       }
       setIsLoading(false);
