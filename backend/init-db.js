@@ -2,6 +2,13 @@ const { Client } = require('pg');
 const fs = require('fs');
 const path = require('path');
 
+// This runs as the Fly.io release_command on every deploy, in a fresh
+// machine. A cold or just-waking Postgres can drop the first connection
+// attempts, and a failed release command aborts the entire deploy — so
+// every attempt here must tolerate transient connection errors.
+const MAX_ATTEMPTS = 10;
+const RETRY_DELAY_MS = 5000;
+
 async function initDatabase() {
   const client = new Client({
     connectionString: process.env.DATABASE_URL,
@@ -46,12 +53,27 @@ async function initDatabase() {
     await client.query(schema);
 
     console.log('Database initialized successfully!');
-  } catch (error) {
-    console.error('Error initializing database:', error);
-    process.exit(1);
   } finally {
-    await client.end();
+    await client.end().catch(() => {});
   }
 }
 
-initDatabase();
+async function main() {
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    try {
+      await initDatabase();
+      return;
+    } catch (error) {
+      console.error(
+        `Database init attempt ${attempt}/${MAX_ATTEMPTS} failed: ${error.message}`
+      );
+      if (attempt === MAX_ATTEMPTS) {
+        console.error('Error initializing database:', error);
+        process.exit(1);
+      }
+      await new Promise((resolve) => setTimeout(resolve, RETRY_DELAY_MS));
+    }
+  }
+}
+
+main();
