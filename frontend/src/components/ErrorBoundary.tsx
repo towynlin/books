@@ -28,7 +28,10 @@ function ErrorFallback({ error }: { error: Error }) {
   );
 }
 
-class ErrorBoundaryInner extends Component<{ children: ReactNode }, { error: Error | null }> {
+class ErrorBoundaryInner extends Component<
+  { children: ReactNode; resetKey: string },
+  { error: Error | null }
+> {
   state = { error: null as Error | null };
 
   static getDerivedStateFromError(error: Error) {
@@ -39,6 +42,12 @@ class ErrorBoundaryInner extends Component<{ children: ReactNode }, { error: Err
     console.error('Unhandled render error:', error, info);
   }
 
+  componentDidUpdate(prevProps: { resetKey: string }) {
+    if (this.state.error && prevProps.resetKey !== this.props.resetKey) {
+      this.setState({ error: null });
+    }
+  }
+
   render() {
     if (this.state.error) {
       return <ErrorFallback error={this.state.error} />;
@@ -47,9 +56,11 @@ class ErrorBoundaryInner extends Component<{ children: ReactNode }, { error: Err
   }
 }
 
-// Keyed by location so navigating (back, nav links) remounts the boundary
-// and clears the error state instead of staying stuck on the fallback.
+// Clears the error state on navigation (back, nav links) so the app doesn't
+// stay stuck on the fallback. This must NOT remount the children on every
+// location change (e.g. via key={location.key}): pages like Home sync filter
+// text into the URL on each keystroke, and a remount would blur the input.
 export function RouteErrorBoundary({ children }: { children: ReactNode }) {
   const location = useLocation();
-  return <ErrorBoundaryInner key={location.key}>{children}</ErrorBoundaryInner>;
+  return <ErrorBoundaryInner resetKey={location.key}>{children}</ErrorBoundaryInner>;
 }
