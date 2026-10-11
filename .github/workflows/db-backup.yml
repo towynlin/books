@@ -23,9 +23,11 @@
 #   BACKUP_PASSPHRASE    Long random passphrase. Keep a copy outside GitHub
 #                        (password manager), or the backups are unrecoverable.
 #
-# Restore:
+# Restore (needs pg_restore 18+, since pg_dump 18 wrote the archive). Connect
+# as an admin and SET ROLE to the app's DB user so it still owns the tables:
 #   gpg --decrypt books-YYYY-MM-DD.dump.gpg > books.dump
-#   pg_restore --no-owner --no-privileges --clean --if-exists -d "$DATABASE_URL" books.dump
+#   pg_restore --clean --if-exists --no-owner --role=APP_DB_USER \
+#     --single-transaction --exit-on-error -d "$ADMIN_URL" books.dump
 
 name: DB Backup
 on:
