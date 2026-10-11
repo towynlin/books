@@ -1,12 +1,20 @@
-# Weekly encrypted pg_dump of the production database, kept as a workflow
-# artifact for 90 days (the maximum for a public repo).
+# Monthly encrypted pg_dump of the production Fly Postgres database, kept as a
+# workflow artifact for 90 days (the maximum for a public repo), so about
+# three backups exist at any time.
 #
 # This repo is public, and artifacts on public repos can be downloaded by any
 # signed-in GitHub user, so the dump is encrypted before upload.
 #
+# The database is only reachable on Fly's private network, so the job opens a
+# `fly proxy` tunnel to its .flycast address (which also wakes a stopped
+# Postgres machine) and dumps through localhost.
+#
 # Required repository secrets:
-#   BACKUP_DATABASE_URL  Neon *direct* (non "-pooler") connection string.
-#                        pg_dump through PgBouncer is unreliable.
+#   FLY_BACKUP_TOKEN     Fly token with access to the books-db app
+#                        (`fly tokens create deploy -a books-db`).
+#   BACKUP_DATABASE_URL  The app's DATABASE_URL, verbatim
+#                        (`fly ssh console -a books-tracker -C 'printenv DATABASE_URL'`).
+#                        Its host:port is rewritten to the local tunnel.
 #   BACKUP_PASSPHRASE    Long random passphrase. Keep a copy outside GitHub
 #                        (password manager), or the backups are unrecoverable.
 #
@@ -17,8 +25,11 @@
 name: DB Backup
 on:
   schedule:
-    - cron: '17 9 * * 1'   # Mondays 09:17 UTC
+    - cron: '17 9 3 * *'   # 3rd of each month, 09:17 UTC
   workflow_dispatch:
+
+env:
+  FLY_PG_APP: books-db
 
 jobs:
   backup:
@@ -29,12 +40,25 @@ jobs:
     steps:
       - name: Install PostgreSQL 18 client
         # pg_dump must be at least the server's major version; the runner's
-        # preinstalled client lags Neon's default.
+        # preinstalled client may lag it.
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq postgresql-common
           sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
           sudo apt-get install -y -qq postgresql-client-18
+
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+
+      - name: Open tunnel to Fly Postgres
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_BACKUP_TOKEN }}
+        run: |
+          flyctl proxy 15432:5432 "$FLY_PG_APP.flycast" -a "$FLY_PG_APP" > proxy.log 2>&1 &
+          for i in $(seq 1 30); do
+            /usr/lib/postgresql/18/bin/pg_isready -q -h localhost -p 15432 && exit 0
+            sleep 2
+          done
+          echo "Tunnel never became ready"; cat proxy.log; exit 1
 
       - name: Dump and encrypt
         env:
@@ -45,11 +69,12 @@ jobs:
           test -n "$DATABASE_URL" || { echo "BACKUP_DATABASE_URL is not set"; exit 1; }
           test -n "$BACKUP_PASSPHRASE" || { echo "BACKUP_PASSPHRASE is not set"; exit 1; }
           PGBIN=/usr/lib/postgresql/18/bin
+          LOCAL_URL=$(printf '%s' "$DATABASE_URL" | sed -E 's#@[^/@]+/#@localhost:15432/#')
           OUT="books-$(date -u +%F).dump"
           echo "OUT=$OUT" >> "$GITHUB_ENV"
 
           "$PGBIN/pg_dump" --format=custom --no-owner --no-privileges \
-            --dbname="$DATABASE_URL" --file="$OUT"
+            --dbname="$LOCAL_URL" --file="$OUT"
 
           # Sanity check: the archive is readable and contains the books table.
           "$PGBIN/pg_restore" --list "$OUT" | grep -q 'TABLE public books'
