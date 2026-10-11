@@ -17,9 +17,12 @@ primary_region = 'sjc'
 
 [http_service]
   internal_port = 8080
-  auto_stop_machines = 'off'
+  # Single user, a few visits a month: stop the machine when idle and boot it
+  # on the next request (a few seconds of cold start) instead of paying for an
+  # always-on VM. Nothing in the backend runs on a timer, so stopping is safe.
+  auto_stop_machines = 'stop'
   auto_start_machines = true
-  min_machines_running = 1
+  min_machines_running = 0
 
   [[http_service.checks]]
     interval = '15s'

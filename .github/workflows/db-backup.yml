@@ -1,0 +1,104 @@
+# Monthly encrypted pg_dump of the production Fly Postgres database, kept as a
+# workflow artifact for 90 days (the maximum for a public repo), so about
+# three backups exist at any time.
+#
+# This repo is public, and artifacts on public repos can be downloaded by any
+# signed-in GitHub user, so the dump is encrypted before upload.
+#
+# The database is only reachable on Fly's private network, so the job opens a
+# `fly proxy` tunnel to its .flycast address (which also wakes a stopped
+# Postgres machine) and dumps through localhost.
+#
+# Required repository secrets:
+#   FLY_BACKUP_TOKEN     Fly token with access to the books-db app
+#                        (`fly tokens create deploy -a books-db`).
+#   BACKUP_DATABASE_URL  Connection string for a read-only backup role, e.g.
+#                        postgres://backup:PASSWORD@books-db.flycast:5432/DBNAME
+#                        Its host:port is rewritten to the local tunnel. Create
+#                        the role via `fly postgres connect -a books-db`:
+#                          CREATE ROLE backup LOGIN PASSWORD '...';
+#                          GRANT pg_read_all_data TO backup;
+#                        (The app image is distroless, so `fly ssh console`
+#                        into books-tracker has no shell to read env vars.)
+#   BACKUP_PASSPHRASE    Long random passphrase. Keep a copy outside GitHub
+#                        (password manager), or the backups are unrecoverable.
+#
+# Restore:
+#   gpg --decrypt books-YYYY-MM-DD.dump.gpg > books.dump
+#   pg_restore --no-owner --no-privileges --clean --if-exists -d "$DATABASE_URL" books.dump
+
+name: DB Backup
+on:
+  schedule:
+    - cron: '17 9 3 * *'   # 3rd of each month, 09:17 UTC
+  workflow_dispatch:
+
+env:
+  FLY_PG_APP: books-db
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: write   # for the keepalive step below
+    steps:
+      - name: Install PostgreSQL 18 client
+        # pg_dump must be at least the server's major version; the runner's
+        # preinstalled client may lag it.
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-common
+          sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
+          sudo apt-get install -y -qq postgresql-client-18
+
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+
+      - name: Open tunnel to Fly Postgres
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_BACKUP_TOKEN }}
+        run: |
+          flyctl proxy 15432:5432 "$FLY_PG_APP.flycast" -a "$FLY_PG_APP" > proxy.log 2>&1 &
+          for i in $(seq 1 30); do
+            /usr/lib/postgresql/18/bin/pg_isready -q -h localhost -p 15432 && exit 0
+            sleep 2
+          done
+          echo "Tunnel never became ready"; cat proxy.log; exit 1
+
+      - name: Dump and encrypt
+        env:
+          DATABASE_URL: ${{ secrets.BACKUP_DATABASE_URL }}
+          BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+        run: |
+          set -euo pipefail
+          test -n "$DATABASE_URL" || { echo "BACKUP_DATABASE_URL is not set"; exit 1; }
+          test -n "$BACKUP_PASSPHRASE" || { echo "BACKUP_PASSPHRASE is not set"; exit 1; }
+          PGBIN=/usr/lib/postgresql/18/bin
+          LOCAL_URL=$(printf '%s' "$DATABASE_URL" | sed -E 's#@[^/@]+/#@localhost:15432/#')
+          OUT="books-$(date -u +%F).dump"
+          echo "OUT=$OUT" >> "$GITHUB_ENV"
+
+          "$PGBIN/pg_dump" --format=custom --no-owner --no-privileges \
+            --dbname="$LOCAL_URL" --file="$OUT"
+
+          # Sanity check: the archive is readable and contains the books table.
+          "$PGBIN/pg_restore" --list "$OUT" | grep -q 'TABLE public books'
+
+          gpg --batch --yes --pinentry-mode loopback \
+            --passphrase-file <(printf '%s' "$BACKUP_PASSPHRASE") \
+            --symmetric --cipher-algo AES256 --output "$OUT.gpg" "$OUT"
+          rm "$OUT"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.OUT }}.gpg
+          path: ${{ env.OUT }}.gpg
+          retention-days: 90
+          if-no-files-found: error
+
+      - name: Keep schedule alive
+        # GitHub disables scheduled workflows on public repos after 60 days
+        # without repository activity. Re-enabling resets that clock.
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh api -X PUT "repos/${{ github.repository }}/actions/workflows/db-backup.yml/enable"

@@ -78,4 +78,5 @@ Cover image URL construction is documented in `BOOK_COVERS.md`.
 ## Deployment / CI
 
 - **CI**: `tests.yml` runs backend tests on every PR and push to main. `fly-deploy.yml` deploys to Fly.io only after Tests succeeds on main.
+- **Database is a Fly Postgres app** (`books-db`, attached via `DATABASE_URL`). The app machine scales to zero (`min_machines_running = 0`), so expect a few-second cold start. `db-backup.yml` takes a monthly GPG-encrypted `pg_dump` through `fly proxy` and keeps it as a 90-day workflow artifact (secrets and restore steps in the file header).
 - **Production is a single Fly.io app**: the root `Dockerfile` is a multi-stage build that compiles the frontend (with `VITE_API_URL=""`) and backend, then serves both from one Express process on port 8080. `fly.toml` runs `node init-db.js` as the release command and health-checks `/health`.
