@@ -23,9 +23,14 @@
 #   BACKUP_PASSPHRASE    Long random passphrase. Keep a copy outside GitHub
 #                        (password manager), or the backups are unrecoverable.
 #
-# Restore:
+# Restore (needs pg_restore 18+, since pg_dump 18 wrote the archive). Connect
+# as an admin and SET ROLE to the app's DB user so it still owns the tables:
 #   gpg --decrypt books-YYYY-MM-DD.dump.gpg > books.dump
-#   pg_restore --no-owner --no-privileges --clean --if-exists -d "$DATABASE_URL" books.dump
+#   # Test into a throwaway DB (no app role there, so drop ownership/grants):
+#   pg_restore --no-owner --no-privileges --exit-on-error -d "$TEST_URL" books.dump
+#   # Production:
+#   pg_restore --clean --if-exists --no-owner --role=APP_DB_USER \
+#     --single-transaction --exit-on-error -d "$ADMIN_URL" books.dump
 
 name: DB Backup
 on:
@@ -78,8 +83,9 @@ jobs:
           OUT="books-$(date -u +%F).dump"
           echo "OUT=$OUT" >> "$GITHUB_ENV"
 
-          "$PGBIN/pg_dump" --format=custom --no-owner --no-privileges \
-            --dbname="$LOCAL_URL" --file="$OUT"
+          # Ownership is kept in the archive (pg_dump ignores --no-owner for
+          # custom format); pass --no-owner to pg_restore instead.
+          "$PGBIN/pg_dump" --format=custom --dbname="$LOCAL_URL" --file="$OUT"
 
           # Sanity check: the archive is readable and contains the books table.
           "$PGBIN/pg_restore" --list "$OUT" | grep -q 'TABLE public books'
