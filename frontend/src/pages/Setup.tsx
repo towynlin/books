@@ -52,9 +52,11 @@ export function Setup() {
     setError(null);
     setIsRegistering(true);
 
+    let excludedCredentials = false;
     try {
       // Get registration options
       const options = await authAPI.getSetupRegistrationOptions(token);
+      excludedCredentials = (options.excludeCredentials?.length ?? 0) > 0;
 
       // Start WebAuthn registration
       const credential = await startRegistration({ optionsJSON: options });
@@ -67,7 +69,7 @@ export function Setup() {
       navigate('/');
     } catch (err) {
       console.error('Setup failed:', err);
-      setError(describeWebAuthnError(err, 'Setup failed'));
+      setError(describeWebAuthnError(err, 'Setup failed', { excludedCredentials }));
     } finally {
       setIsRegistering(false);
     }

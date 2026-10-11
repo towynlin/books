@@ -46,7 +46,7 @@ For local development, copy `.env.example` to `.env` at the repo root and in `ba
 
 ### Authentication model
 
-Passkeys (WebAuthn via `@simplewebauthn/server`) are the only primary credential — no passwords. Successful registration/login issues a JWT which the frontend stores in localStorage and sends as `Bearer` tokens (`src/middleware/auth.ts` verifies). Supporting flows, each with its own table: bcrypt-hashed **recovery codes** (fallback login), time-limited **setup tokens** (add a passkey on a new device via link), and **invitation tokens** (first user is `is_initial_user`; additional users need an invitation). `RP_ID`/`RP_ORIGIN` env vars must exactly match the serving domain or all passkey ceremonies fail.
+Passkeys (WebAuthn via `@simplewebauthn/server`) are the only primary credential — no passwords. Login is username-less by default (discoverable passkeys: empty `allowCredentials`, account found from the credential ID via `/login/discoverable/*`), with a username-first fallback (`/login/options`) for passkeys not stored on the authenticator. Passkeys added to an existing account use the account UUID as the WebAuthn user handle so re-registering a security key overwrites its slot. Successful registration/login issues a JWT which the frontend stores in localStorage and sends as `Bearer` tokens (`src/middleware/auth.ts` verifies). Supporting flows, each with its own table: bcrypt-hashed **recovery codes** (fallback login), time-limited **setup tokens** (add a passkey on a new device via link), and **invitation tokens** (first user is `is_initial_user`; additional users need an invitation). `RP_ID`/`RP_ORIGIN` env vars must exactly match the serving domain or all passkey ceremonies fail.
 
 ### Database schema and migrations
 

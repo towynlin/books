@@ -274,6 +274,21 @@ export const authAPI = {
     });
   },
 
+  // Get options for username-less (discoverable passkey) login
+  getDiscoverableLoginOptions: async (): Promise<PublicKeyCredentialRequestOptionsJSON> => {
+    return fetchAPI<PublicKeyCredentialRequestOptionsJSON>('/api/auth/login/discoverable/options', {
+      method: 'POST',
+    });
+  },
+
+  // Verify username-less login; the passkey itself identifies the account
+  verifyDiscoverableLogin: async (credential: AuthenticationResponseJSON): Promise<AuthResponse> => {
+    return fetchAPI<AuthResponse>('/api/auth/login/discoverable/verify', {
+      method: 'POST',
+      body: JSON.stringify({ credential }),
+    });
+  },
+
   // Verify token
   verifyToken: async (token: string): Promise<{ valid: boolean; user: User }> => {
     return fetchAPI<{ valid: boolean; user: User }>('/api/auth/verify-token', {

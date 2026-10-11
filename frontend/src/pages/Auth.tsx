@@ -17,6 +17,9 @@ export function Auth() {
   const [recoveryCodes, setRecoveryCodes] = useState<string[] | null>(null);
   const [useRecoveryCode, setUseRecoveryCode] = useState(false);
   const [recoveryCode, setRecoveryCode] = useState('');
+  // Username-first passkey login, for passkeys that aren't stored on the
+  // device/security key (non-discoverable). Default is username-less.
+  const [useUsername, setUseUsername] = useState(false);
   const { login } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -95,7 +98,7 @@ export function Auth() {
     setIsLoading(true);
 
     try {
-      if (!username.trim()) {
+      if ((useRecoveryCode || useUsername) && !username.trim()) {
         setError('Username is required');
         setIsLoading(false);
         return;
@@ -112,18 +115,24 @@ export function Auth() {
         const response = await authAPI.loginWithRecoveryCode(username, recoveryCode);
         login(response.token, response.user);
         navigate('/');
-      } else {
-        // Login with passkey
-        // Get login options from server
+      } else if (useUsername) {
+        // Username-first passkey login: the server lists this account's
+        // passkeys, so it works even for ones not stored on the device
         const options = await authAPI.getLoginOptions(username);
 
         // Start WebAuthn authentication (disable conditional mediation to avoid state issues after logout)
         const credential = await startAuthentication({ optionsJSON: options, useBrowserAutofill: false });
 
-        // Verify login with server
         const response = await authAPI.verifyLogin(username, credential);
-
-        // Store auth token and redirect
+        login(response.token, response.user);
+        navigate('/');
+      } else {
+        // Username-less passkey login: the browser offers the passkeys this
+        // device or security key holds for the site, and the chosen one
+        // identifies the account
+        const options = await authAPI.getDiscoverableLoginOptions();
+        const credential = await startAuthentication({ optionsJSON: options, useBrowserAutofill: false });
+        const response = await authAPI.verifyDiscoverableLogin(credential);
         login(response.token, response.user);
         navigate('/');
       }
@@ -217,6 +226,8 @@ export function Auth() {
 
   // Determine what to show
   const showRegistration = !hasUser || (requiresInvitation && invitationValid);
+  const isRegistering = (showRegistration && !hasUser) || invitationValid;
+  const showUsernameField = isRegistering || useRecoveryCode || useUsername;
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-warm-cream py-12 px-4 sm:px-6 lg:px-8">
@@ -242,8 +253,9 @@ export function Auth() {
           </div>
         )}
 
-        <form className="mt-8 space-y-6" onSubmit={showRegistration && !hasUser || invitationValid ? handleRegister : handleLogin}>
+        <form className="mt-8 space-y-6" onSubmit={isRegistering ? handleRegister : handleLogin}>
           <div className="rounded-2xl shadow-sm space-y-3">
+            {showUsernameField && (
             <div>
               <label htmlFor="username" className="sr-only">
                 Username
@@ -261,6 +273,7 @@ export function Auth() {
                 disabled={isLoading}
               />
             </div>
+            )}
 
             {hasUser && !invitationValid && useRecoveryCode && (
               <div>
@@ -315,7 +328,19 @@ export function Auth() {
           </div>
 
           {hasUser && !invitationValid && (
-            <div className="text-sm text-center">
+            <div className="text-sm text-center space-y-2">
+              {!useRecoveryCode && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setUseUsername(!useUsername);
+                    setError(null);
+                  }}
+                  className="block w-full font-semibold text-terracotta hover:text-terracotta/80 transition-colors"
+                >
+                  {useUsername ? 'Sign in without a username' : 'Sign in with your username instead'}
+                </button>
+              )}
               <button
                 type="button"
                 onClick={() => {
@@ -323,7 +348,7 @@ export function Auth() {
                   setRecoveryCode('');
                   setError(null);
                 }}
-                className="font-semibold text-terracotta hover:text-terracotta/80 transition-colors"
+                className="block w-full font-semibold text-terracotta hover:text-terracotta/80 transition-colors"
               >
                 {useRecoveryCode ? 'Use passkey instead' : 'Use recovery code instead'}
               </button>

@@ -8,6 +8,7 @@ import {
   generateAuthenticationOptions,
   verifyAuthenticationResponse,
 } from '@simplewebauthn/server';
+import { isoUint8Array } from '@simplewebauthn/server/helpers';
 import type {
   RegistrationResponseJSON,
   AuthenticationResponseJSON,
@@ -63,6 +64,88 @@ if (!jwtSecret) {
 // sync with the challenge TTL in utils/challengeStore.ts.
 const CEREMONY_TIMEOUT_MS = 5 * 60 * 1000;
 
+// Challenge scope for username-less logins. Must not collide with
+// `login:<username>` scopes, hence no colon-prefixed "login".
+const DISCOVERABLE_LOGIN_SCOPE = 'discoverable-login';
+
+// Stable WebAuthn user handle for an existing account. Reusing the same
+// handle means re-registering a security key overwrites its stored passkey
+// for this account instead of filling another of its limited slots. (The
+// first passkey of a brand-new account gets a random handle because the
+// account row doesn't exist yet; login never depends on the handle.)
+function userHandleFor(userId: string): Uint8Array<ArrayBuffer> {
+  return isoUint8Array.fromUTF8String(userId) as Uint8Array<ArrayBuffer>;
+}
+
+// Verify a passkey assertion against the stored credential it names and bump
+// its signature counter. With `expectedUserId`, the credential must belong to
+// that user (username-first login); without it, the credential alone
+// identifies the account (discoverable login). Returns null on any failure so
+// callers can answer with one generic error.
+async function verifyPasskeyAssertion(
+  credential: AuthenticationResponseJSON,
+  expectedChallenge: string,
+  expectedUserId?: string
+): Promise<{ id: string; username: string } | null> {
+  // credential.rawId from browser is base64url, stored credential_id is also base64url
+  const credentialResult = await query(
+    `SELECT pc.id, pc.credential_id, pc.public_key, pc.counter, u.id AS user_id, u.username
+       FROM passkey_credentials pc
+       JOIN users u ON u.id = pc.user_id
+      WHERE pc.credential_id = $1`,
+    [credential.rawId]
+  );
+
+  if (credentialResult.rows.length === 0) return null;
+  const dbCredential = credentialResult.rows[0];
+
+  if (expectedUserId && dbCredential.user_id !== expectedUserId) return null;
+
+  // Passkeys registered with userHandleFor() echo the account ID back; reject
+  // a mismatch. Older passkeys carry random handles, which can't be checked.
+  const userHandle = credential.response.userHandle;
+  if (userHandle) {
+    const decoded = Buffer.from(userHandle, 'base64url').toString('utf8');
+    if (UUID_PATTERN.test(decoded) && decoded !== dbCredential.user_id) return null;
+  }
+
+  const verification = await verifyAuthenticationResponse({
+    response: credential,
+    expectedChallenge,
+    expectedOrigin: rpOrigin,
+    expectedRPID: rpID,
+    credential: {
+      id: dbCredential.credential_id,
+      publicKey: dbCredential.public_key,
+      counter: Number(dbCredential.counter),
+    },
+  });
+
+  if (!verification.verified) return null;
+
+  await query(
+    'UPDATE passkey_credentials SET counter = $1 WHERE id = $2',
+    [verification.authenticationInfo.newCounter, dbCredential.id]
+  );
+
+  return { id: dbCredential.user_id, username: dbCredential.username };
+}
+
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+const loginResponse = (user: { id: string; username: string }) => {
+  const token = jwt.sign(
+    { userId: user.id, username: user.username },
+    jwtSecret,
+    { expiresIn: '30d' }
+  );
+  return {
+    verified: true,
+    token,
+    user: { id: user.id, username: user.username },
+  };
+};
+
 // POST /api/auth/register/options - Get registration options
 router.post('/register/options', async (req, res) => {
   try {
@@ -103,6 +186,7 @@ router.post('/register/options', async (req, res) => {
       rpName,
       rpID,
       userName: username,
+      userDisplayName: username,
       attestationType: 'none',
       timeout: CEREMONY_TIMEOUT_MS,
       authenticatorSelection: {
@@ -337,7 +421,7 @@ router.post('/login/verify', async (req, res) => {
 
     // Find user and credential — use generic error to prevent enumeration
     const userResult = await query(
-      'SELECT id, username FROM users WHERE username = $1',
+      'SELECT id FROM users WHERE username = $1',
       [username]
     );
 
@@ -345,61 +429,60 @@ router.post('/login/verify', async (req, res) => {
       return res.status(400).json({ error: 'Authentication failed' });
     }
 
-    const user = userResult.rows[0];
-
-    // credential.rawId from browser is base64url, stored credential_id is also base64url
-    const credentialResult = await query(
-      'SELECT id, credential_id, public_key, counter FROM passkey_credentials WHERE user_id = $1 AND credential_id = $2',
-      [user.id, credential.rawId]
-    );
-
-    if (credentialResult.rows.length === 0) {
+    const user = await verifyPasskeyAssertion(credential, expectedChallenge, userResult.rows[0].id);
+    if (!user) {
       return res.status(400).json({ error: 'Authentication failed' });
     }
 
-    const dbCredential = credentialResult.rows[0];
-
-    // Verify the authentication
-    // credential_id is stored as base64url, use it directly
-    const verification = await verifyAuthenticationResponse({
-      response: credential,
-      expectedChallenge,
-      expectedOrigin: rpOrigin,
-      expectedRPID: rpID,
-      credential: {
-        id: dbCredential.credential_id,
-        publicKey: dbCredential.public_key,
-        counter: Number(dbCredential.counter),
-      },
-    });
-
-    if (!verification.verified) {
-      return res.status(400).json({ error: 'Verification failed' });
-    }
-
-    // Update counter
-    await query(
-      'UPDATE passkey_credentials SET counter = $1 WHERE id = $2',
-      [verification.authenticationInfo.newCounter, dbCredential.id]
-    );
-
-    // Generate JWT
-    const token = jwt.sign(
-      { userId: user.id, username: user.username },
-      jwtSecret,
-      { expiresIn: '30d' }
-    );
-
-    res.json({
-      verified: true,
-      token,
-      user: {
-        id: user.id,
-        username: user.username,
-      },
-    });
+    res.json(loginResponse(user));
   } catch (error) {
     console.error('Error verifying login:', error);
+    res.status(500).json({ error: 'Failed to verify login' });
+  }
+});
+
+// POST /api/auth/login/discoverable/options - Options for username-less login.
+// No allowCredentials: the browser offers whatever passkeys the device or
+// security key holds for this site, and the chosen one identifies the account.
+router.post('/login/discoverable/options', async (_req, res) => {
+  try {
+    const options = await generateAuthenticationOptions({
+      rpID,
+      userVerification: 'preferred',
+      timeout: CEREMONY_TIMEOUT_MS,
+    });
+
+    await createChallenge(DISCOVERABLE_LOGIN_SCOPE, options.challenge);
+
+    res.json(options);
+  } catch (error) {
+    console.error('Error generating discoverable login options:', error);
+    res.status(500).json({ error: 'Failed to generate login options' });
+  }
+});
+
+// POST /api/auth/login/discoverable/verify - Verify username-less login
+router.post('/login/discoverable/verify', async (req, res) => {
+  try {
+    const { credential } = req.body as { credential: AuthenticationResponseJSON };
+
+    if (!credential) {
+      return res.status(400).json({ error: 'Credential is required' });
+    }
+
+    const expectedChallenge = extractChallenge(credential);
+    if (!expectedChallenge || !(await consumeChallenge(DISCOVERABLE_LOGIN_SCOPE, expectedChallenge))) {
+      return res.status(400).json({ error: 'This sign-in attempt has expired. Please try again.' });
+    }
+
+    const user = await verifyPasskeyAssertion(credential, expectedChallenge);
+    if (!user) {
+      return res.status(400).json({ error: 'Authentication failed' });
+    }
+
+    res.json(loginResponse(user));
+  } catch (error) {
+    console.error('Error verifying discoverable login:', error);
     res.status(500).json({ error: 'Failed to verify login' });
   }
 });
@@ -562,18 +645,21 @@ router.post('/passkeys/add-options', authenticate, async (req: AuthRequest, res)
 
     // Get existing credentials to exclude them
     const existingCreds = await query(
-      'SELECT credential_id FROM passkey_credentials WHERE user_id = $1',
+      'SELECT credential_id, transports FROM passkey_credentials WHERE user_id = $1',
       [userId]
     );
 
     const options = await generateRegistrationOptions({
       rpName,
       rpID,
+      userID: userHandleFor(userId),
       userName: username,
+      userDisplayName: username,
       attestationType: 'none',
       excludeCredentials: existingCreds.rows.map((cred: any) => ({
         id: cred.credential_id,
         type: 'public-key' as const,
+        transports: cred.transports || [],
       })),
       timeout: CEREMONY_TIMEOUT_MS,
       authenticatorSelection: {
@@ -850,7 +936,7 @@ router.post('/setup-token/register-options', async (req, res) => {
 
     // Get existing credentials to exclude them
     const existingCreds = await query(
-      'SELECT credential_id FROM passkey_credentials WHERE user_id = $1',
+      'SELECT credential_id, transports FROM passkey_credentials WHERE user_id = $1',
       [tokenData.user_id]
     );
 
@@ -858,11 +944,14 @@ router.post('/setup-token/register-options', async (req, res) => {
     const options = await generateRegistrationOptions({
       rpName,
       rpID,
+      userID: userHandleFor(tokenData.user_id),
       userName: tokenData.username,
+      userDisplayName: tokenData.username,
       attestationType: 'none',
       excludeCredentials: existingCreds.rows.map((cred: any) => ({
         id: cred.credential_id,
         type: 'public-key' as const,
+        transports: cred.transports || [],
       })),
       timeout: CEREMONY_TIMEOUT_MS,
       authenticatorSelection: {
