@@ -12,9 +12,14 @@
 # Required repository secrets:
 #   FLY_BACKUP_TOKEN     Fly token with access to the books-db app
 #                        (`fly tokens create deploy -a books-db`).
-#   BACKUP_DATABASE_URL  The app's DATABASE_URL, verbatim
-#                        (`fly ssh console -a books-tracker -C 'printenv DATABASE_URL'`).
-#                        Its host:port is rewritten to the local tunnel.
+#   BACKUP_DATABASE_URL  Connection string for a read-only backup role, e.g.
+#                        postgres://backup:PASSWORD@books-db.flycast:5432/DBNAME
+#                        Its host:port is rewritten to the local tunnel. Create
+#                        the role via `fly postgres connect -a books-db`:
+#                          CREATE ROLE backup LOGIN PASSWORD '...';
+#                          GRANT pg_read_all_data TO backup;
+#                        (The app image is distroless, so `fly ssh console`
+#                        into books-tracker has no shell to read env vars.)
 #   BACKUP_PASSPHRASE    Long random passphrase. Keep a copy outside GitHub
 #                        (password manager), or the backups are unrecoverable.
 #
