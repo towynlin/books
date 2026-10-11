@@ -64,8 +64,7 @@ if (!jwtSecret) {
 // sync with the challenge TTL in utils/challengeStore.ts.
 const CEREMONY_TIMEOUT_MS = 5 * 60 * 1000;
 
-// Challenge scope for username-less logins. Must not collide with
-// `login:<username>` scopes, hence no colon-prefixed "login".
+// Challenge scope for passkey logins (always username-less).
 const DISCOVERABLE_LOGIN_SCOPE = 'discoverable-login';
 
 // Stable WebAuthn user handle for an existing account. Reusing the same
@@ -78,14 +77,11 @@ function userHandleFor(userId: string): Uint8Array<ArrayBuffer> {
 }
 
 // Verify a passkey assertion against the stored credential it names and bump
-// its signature counter. With `expectedUserId`, the credential must belong to
-// that user (username-first login); without it, the credential alone
-// identifies the account (discoverable login). Returns null on any failure so
-// callers can answer with one generic error.
+// its signature counter. The credential alone identifies the account.
+// Returns null on any failure so callers can answer with one generic error.
 async function verifyPasskeyAssertion(
   credential: AuthenticationResponseJSON,
-  expectedChallenge: string,
-  expectedUserId?: string
+  expectedChallenge: string
 ): Promise<{ id: string; username: string } | null> {
   // credential.rawId from browser is base64url, stored credential_id is also base64url
   const credentialResult = await query(
@@ -98,8 +94,6 @@ async function verifyPasskeyAssertion(
 
   if (credentialResult.rows.length === 0) return null;
   const dbCredential = credentialResult.rows[0];
-
-  if (expectedUserId && dbCredential.user_id !== expectedUserId) return null;
 
   // Passkeys registered with userHandleFor() echo the account ID back; reject
   // a mismatch. Older passkeys carry random handles, which can't be checked.
@@ -349,95 +343,6 @@ router.post('/register/verify', async (req, res) => {
     }
     console.error('Error verifying registration:', error);
     res.status(500).json({ error: 'Failed to verify registration' });
-  }
-});
-
-// POST /api/auth/login/options - Get login options
-router.post('/login/options', async (req, res) => {
-  try {
-    const { username } = req.body;
-
-    if (!username || typeof username !== 'string') {
-      return res.status(400).json({ error: 'Username is required' });
-    }
-
-    // Find user and their credentials
-    const userResult = await query(
-      'SELECT id, username FROM users WHERE username = $1',
-      [username]
-    );
-
-    const user = userResult.rows.length > 0 ? userResult.rows[0] : null;
-
-    let allowCredentials: { id: string; type: 'public-key'; transports: any[] }[] = [];
-    if (user) {
-      const credentialsResult = await query(
-        'SELECT credential_id, transports FROM passkey_credentials WHERE user_id = $1',
-        [user.id]
-      );
-      allowCredentials = credentialsResult.rows.map((cred: any) => ({
-        id: cred.credential_id,
-        type: 'public-key' as const,
-        transports: cred.transports || [],
-      }));
-    }
-
-    // Generate authentication options even for non-existent users
-    // to prevent username enumeration via response differences
-    const options = await generateAuthenticationOptions({
-      rpID,
-      allowCredentials,
-      userVerification: 'preferred',
-      timeout: CEREMONY_TIMEOUT_MS,
-    });
-
-    // Store challenge (will fail at verify step for non-existent users)
-    await createChallenge(`login:${username}`, options.challenge);
-
-    res.json(options);
-  } catch (error) {
-    console.error('Error generating login options:', error);
-    res.status(500).json({ error: 'Failed to generate login options' });
-  }
-});
-
-// POST /api/auth/login/verify - Verify login
-router.post('/login/verify', async (req, res) => {
-  try {
-    const { username, credential } = req.body as {
-      username: string;
-      credential: AuthenticationResponseJSON;
-    };
-
-    if (!username || !credential) {
-      return res.status(400).json({ error: 'Username and credential are required' });
-    }
-
-    // Consume the challenge this assertion was created against (single-use)
-    const expectedChallenge = extractChallenge(credential);
-    if (!expectedChallenge || !(await consumeChallenge(`login:${username}`, expectedChallenge))) {
-      return res.status(400).json({ error: 'This sign-in attempt has expired. Please try again.' });
-    }
-
-    // Find user and credential — use generic error to prevent enumeration
-    const userResult = await query(
-      'SELECT id FROM users WHERE username = $1',
-      [username]
-    );
-
-    if (userResult.rows.length === 0) {
-      return res.status(400).json({ error: 'Authentication failed' });
-    }
-
-    const user = await verifyPasskeyAssertion(credential, expectedChallenge, userResult.rows[0].id);
-    if (!user) {
-      return res.status(400).json({ error: 'Authentication failed' });
-    }
-
-    res.json(loginResponse(user));
-  } catch (error) {
-    console.error('Error verifying login:', error);
-    res.status(500).json({ error: 'Failed to verify login' });
   }
 });
 

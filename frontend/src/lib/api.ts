@@ -258,22 +258,6 @@ export const authAPI = {
     });
   },
 
-  // Get login options
-  getLoginOptions: async (username: string): Promise<PublicKeyCredentialRequestOptionsJSON> => {
-    return fetchAPI<PublicKeyCredentialRequestOptionsJSON>('/api/auth/login/options', {
-      method: 'POST',
-      body: JSON.stringify({ username }),
-    });
-  },
-
-  // Verify login
-  verifyLogin: async (username: string, credential: AuthenticationResponseJSON): Promise<AuthResponse> => {
-    return fetchAPI<AuthResponse>('/api/auth/login/verify', {
-      method: 'POST',
-      body: JSON.stringify({ username, credential }),
-    });
-  },
-
   // Get options for username-less (discoverable passkey) login
   getDiscoverableLoginOptions: async (): Promise<PublicKeyCredentialRequestOptionsJSON> => {
     return fetchAPI<PublicKeyCredentialRequestOptionsJSON>('/api/auth/login/discoverable/options', {
