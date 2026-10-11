@@ -17,9 +17,6 @@ export function Auth() {
   const [recoveryCodes, setRecoveryCodes] = useState<string[] | null>(null);
   const [useRecoveryCode, setUseRecoveryCode] = useState(false);
   const [recoveryCode, setRecoveryCode] = useState('');
-  // Username-first passkey login, for passkeys that aren't stored on the
-  // device/security key (non-discoverable). Default is username-less.
-  const [useUsername, setUseUsername] = useState(false);
   const { login } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -98,7 +95,7 @@ export function Auth() {
     setIsLoading(true);
 
     try {
-      if ((useRecoveryCode || useUsername) && !username.trim()) {
+      if (useRecoveryCode && !username.trim()) {
         setError('Username is required');
         setIsLoading(false);
         return;
@@ -113,17 +110,6 @@ export function Auth() {
         }
 
         const response = await authAPI.loginWithRecoveryCode(username, recoveryCode);
-        login(response.token, response.user);
-        navigate('/');
-      } else if (useUsername) {
-        // Username-first passkey login: the server lists this account's
-        // passkeys, so it works even for ones not stored on the device
-        const options = await authAPI.getLoginOptions(username);
-
-        // Start WebAuthn authentication (disable conditional mediation to avoid state issues after logout)
-        const credential = await startAuthentication({ optionsJSON: options, useBrowserAutofill: false });
-
-        const response = await authAPI.verifyLogin(username, credential);
         login(response.token, response.user);
         navigate('/');
       } else {
@@ -227,7 +213,7 @@ export function Auth() {
   // Determine what to show
   const showRegistration = !hasUser || (requiresInvitation && invitationValid);
   const isRegistering = (showRegistration && !hasUser) || invitationValid;
-  const showUsernameField = isRegistering || useRecoveryCode || useUsername;
+  const showUsernameField = isRegistering || useRecoveryCode;
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-warm-cream py-12 px-4 sm:px-6 lg:px-8">
@@ -328,19 +314,7 @@ export function Auth() {
           </div>
 
           {hasUser && !invitationValid && (
-            <div className="text-sm text-center space-y-2">
-              {!useRecoveryCode && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setUseUsername(!useUsername);
-                    setError(null);
-                  }}
-                  className="block w-full font-semibold text-terracotta hover:text-terracotta/80 transition-colors"
-                >
-                  {useUsername ? 'Sign in without a username' : 'Sign in with your username instead'}
-                </button>
-              )}
+            <div className="text-sm text-center">
               <button
                 type="button"
                 onClick={() => {
@@ -348,7 +322,7 @@ export function Auth() {
                   setRecoveryCode('');
                   setError(null);
                 }}
-                className="block w-full font-semibold text-terracotta hover:text-terracotta/80 transition-colors"
+                className="font-semibold text-terracotta hover:text-terracotta/80 transition-colors"
               >
                 {useRecoveryCode ? 'Use passkey instead' : 'Use recovery code instead'}
               </button>

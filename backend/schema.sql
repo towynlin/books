@@ -100,7 +100,7 @@ CREATE TABLE passkey_credentials (
 CREATE TABLE webauthn_challenges (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  scope TEXT NOT NULL,        -- e.g. 'login:<username>', 'registration:<username>', 'add:<user_id>', 'setup:<token>'
+  scope TEXT NOT NULL,        -- e.g. 'discoverable-login', 'registration:<username>', 'add:<user_id>', 'setup:<token>'
   challenge TEXT NOT NULL,    -- base64url challenge exactly as sent in the ceremony options
   expires_at TIMESTAMPTZ NOT NULL
 );
