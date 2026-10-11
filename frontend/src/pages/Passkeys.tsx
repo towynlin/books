@@ -44,9 +44,11 @@ export function Passkeys() {
     setSuccess(null);
     setIsAdding(true);
 
+    let excludedCredentials = false;
     try {
       // Get registration options
       const options = await authAPI.getAddPasskeyOptions();
+      excludedCredentials = (options.excludeCredentials?.length ?? 0) > 0;
 
       // Start WebAuthn registration
       const credential = await startRegistration({ optionsJSON: options });
@@ -61,7 +63,7 @@ export function Passkeys() {
       await loadPasskeys();
     } catch (err) {
       console.error('Failed to add passkey:', err);
-      setError(describeWebAuthnError(err, 'Failed to add passkey'));
+      setError(describeWebAuthnError(err, 'Failed to add passkey', { excludedCredentials }));
     } finally {
       setIsAdding(false);
     }

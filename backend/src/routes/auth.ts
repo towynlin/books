@@ -562,7 +562,7 @@ router.post('/passkeys/add-options', authenticate, async (req: AuthRequest, res)
 
     // Get existing credentials to exclude them
     const existingCreds = await query(
-      'SELECT credential_id FROM passkey_credentials WHERE user_id = $1',
+      'SELECT credential_id, transports FROM passkey_credentials WHERE user_id = $1',
       [userId]
     );
 
@@ -574,6 +574,7 @@ router.post('/passkeys/add-options', authenticate, async (req: AuthRequest, res)
       excludeCredentials: existingCreds.rows.map((cred: any) => ({
         id: cred.credential_id,
         type: 'public-key' as const,
+        transports: cred.transports || [],
       })),
       timeout: CEREMONY_TIMEOUT_MS,
       authenticatorSelection: {
@@ -850,7 +851,7 @@ router.post('/setup-token/register-options', async (req, res) => {
 
     // Get existing credentials to exclude them
     const existingCreds = await query(
-      'SELECT credential_id FROM passkey_credentials WHERE user_id = $1',
+      'SELECT credential_id, transports FROM passkey_credentials WHERE user_id = $1',
       [tokenData.user_id]
     );
 
@@ -863,6 +864,7 @@ router.post('/setup-token/register-options', async (req, res) => {
       excludeCredentials: existingCreds.rows.map((cred: any) => ({
         id: cred.credential_id,
         type: 'public-key' as const,
+        transports: cred.transports || [],
       })),
       timeout: CEREMONY_TIMEOUT_MS,
       authenticatorSelection: {
